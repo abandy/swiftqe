@@ -1,0 +1,17 @@
+included:
+  - Package.swift
+  - Sources/
+  - Tests/
+excluded:
+  - Sources/MySqlLexer.swift
+  - Sources/MySqlNodeBuilder.swift
+  - Sources/MySqlParser.swift
+  - Sources/MySqlParserBaseListener.swift
+  - Sources/MySqlParserListener.swift
+  
+identifier_name:
+  min_length: 2 # only warning
+allow_zero_lintable_files: false
+disabled_rules:
+  - force_cast
+  - opening_brace
