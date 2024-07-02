@@ -26,3 +26,9 @@ This repo uses submodules and in order to build the arrow submodule will need to
 - Not Equals
 - Less Than (Equals)
 - Greater Than (Equals)
+
+## Aggregate Funcs:
+- SUM
+- AVG
+- MIN
+- MAX
