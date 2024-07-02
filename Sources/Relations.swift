@@ -123,6 +123,16 @@ public class Relation { // swiftlint:disable:this type_body_length
         }
     }
 
+    public class FieldWindowFuncNode: FieldNode {
+        public init(_ field: FieldWindowFuncDef) {
+            super.init(field)
+        }
+
+        override public func getValue<T>(data: RowAccessor, context: QueryContext) -> T? {
+            return nil
+        }
+    }
+
     private class CastInteger<T: BinaryInteger> {
         let funcs: [SqlType: ((Any) -> T)] = [
             .INT8: {data in T(data as! Int8)},
@@ -374,7 +384,10 @@ public class Relation { // swiftlint:disable:this type_body_length
             }
 
             for sqlField in sqlSelect.fields {
-                if let complexField = sqlField as? SqlFieldComplexNode {
+                if let aggField = sqlField as? SqlWindowFuncNode {
+                    let childNode = try convert(aggField)
+                    fields.append(childNode as! FieldWindowFuncNode)
+                } else if let complexField = sqlField as? SqlFieldComplexNode {
                     let childNode = try convert(complexField)
                     fields.append(childNode as! FieldComplexNode)
                 } else if let basicField = sqlField as? SqlFieldBasicNode {
@@ -400,6 +413,22 @@ public class Relation { // swiftlint:disable:this type_body_length
         private func convert( // swiftlint:disable:this cyclomatic_complexity function_body_length
             _ sql: SqlNode) throws -> RelNode? {
             switch sql.type {
+            case .WINDOWFUNC:
+                let node = sql as! SqlWindowFuncNode
+                let childNode = try convert(node.body)
+                let outputType = (childNode as! RelNodeWithType).type;
+                let winFunc = FieldWindowFuncDef.getAggFunc(node.funcType, sqlType: outputType)
+                if winFunc == nil {
+                    throw EngineError.generic(
+                        "Function not found for func: \(node.funcType) with type: \(outputType)")
+                }
+                
+                let field = FieldWindowFuncDef(node.name,
+                                               winFunc: winFunc!,
+                                               expression: (childNode as! RelNodeWithType))
+                let complexNode = FieldWindowFuncNode(field)
+                complexNode.alias = node.alias
+                return complexNode
             case .LITERAL:
                 let literal = (sql as! SqlLiteralNode)
                 return LiteralNode(literal.value)

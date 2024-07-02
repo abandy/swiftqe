@@ -16,27 +16,32 @@ public protocol FieldDef {
     var tableDef: TableDef? {get}
     func setTable(_ tableDef: TableDef)
     func load(_ data: RowAccessor, appendFunc: ((Any?) -> Void))
+    func finish(appendFunc: ((Any?) -> Void))
 }
 
 public class FieldAliasDef: FieldDef {
     public var id = uniqueId.loadThenWrappingIncrement(ordering: .relaxed)
-    var child: FieldDef
+    var child: any FieldDef
     var alias: String
     public var name: String { child.name }
     public var type: SqlType { child.type }
     public var tableDef: TableDef? { child.tableDef }
-
-    public init(_ child: FieldDef, alias: String) {
+    
+    public init(_ child: any FieldDef, alias: String) {
         self.child = child
         self.alias = alias
     }
-
+    
     public func setTable(_ tableDef: TableDef) {
         child.setTable(tableDef)
     }
-
+    
     public func load(_ data: RowAccessor, appendFunc: ((Any?) -> Void)) {
         child.load(data, appendFunc: appendFunc)
+    }
+    
+    public func finish(appendFunc: ((Any?) -> Void)) {
+        child.finish(appendFunc: appendFunc)
     }
 }
 
@@ -61,6 +66,24 @@ public class FieldBasicDef: FieldDef {
     public func load(_ data: RowAccessor, appendFunc: ((Any?) -> Void)) {
         appendFunc(data[self.id])
     }
+    
+    public func finish(appendFunc: ((Any?) -> Void)) {}
+}
+
+public class FieldWindowFuncDef: FieldComplexDef {
+    public var winFunc: WindowFunc
+    public init(_ name: String, winFunc: WindowFunc, expression: Relation.RelNodeWithType) {
+        self.winFunc = winFunc
+        super.init(name, sqlType: winFunc.funcSqlType, expression: expression)
+    }
+    
+    public override func load(_ data: RowAccessor, appendFunc: ((Any?) -> Void)) {
+        self.winFunc.load(self.calcFunc!(data), appendFunc: appendFunc)
+    }
+    
+    public override func finish(appendFunc: ((Any?) -> Void)) {
+        self.winFunc.finish(appendFunc: appendFunc)
+    }
 }
 
 public class FieldComplexDef: FieldDef {
@@ -70,10 +93,14 @@ public class FieldComplexDef: FieldDef {
     public private(set) var name: String
     public private(set) var type: SqlType
     public private(set) var tableDef: TableDef?
-    public init(_ name: String, expression: Relation.RelNodeWithType) {
+    public convenience init(_ name: String, expression: Relation.RelNodeWithType) {
+        self.init(name, sqlType: expression.type, expression: expression)
+    }
+
+    public init(_ name: String, sqlType: SqlType, expression: Relation.RelNodeWithType) {
         self.name = name
         self.expression = expression
-        self.type = expression.type
+        self.type = sqlType
     }
 
     public func setTable(_ tableDef: TableDef) {
@@ -83,6 +110,8 @@ public class FieldComplexDef: FieldDef {
     public func load(_ data: RowAccessor, appendFunc: ((Any?) -> Void)) {
         appendFunc(self.calcFunc!(data))
     }
+    
+    public func finish(appendFunc: ((Any?) -> Void)) {}
 }
 
 public class TableDef: Equatable {

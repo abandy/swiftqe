@@ -4,6 +4,7 @@
  */
 
 import Foundation
+import Antlr4
 
 public enum Predicate {
     case EQ, NEQ, GT, LT, GTE, LTE, AND, OR, UNKNOWN
@@ -26,8 +27,8 @@ public enum SqlNodeType: String {
     case OPERATOR, LOGICALOPERATOR, NESTED, COMPUTEDFIELD, JOIN, WINDOWFUNC
 }
 
-public enum WindowFunc: String {
-    case AVG
+public enum WindowFuncType: String {
+    case SUM, AVG, MIN, MAX
 }
 
 public class SqlNode {
@@ -93,20 +94,6 @@ public class SqlLogicalOperatorNode: SqlOperatorNode {
 
     override public func toString() -> String {
         return "SqlLogicalOperatorNode: \(op)"
-    }
-}
-
-public class SqlWindowFuncNode: SqlFieldNode {
-    public var windowFunc: WindowFunc
-    public var body: SqlNode
-    public init(_ name: String, windowFunc: WindowFunc, body: SqlNode) {
-        self.windowFunc = windowFunc
-        self.body = body
-        super.init(name, type: .WINDOWFUNC)
-    }
-
-    override public func toString() -> String {
-        return "SqlOperatorNode: \(windowFunc), \(body.toString())"
     }
 }
 
@@ -186,6 +173,20 @@ public class SqlFieldComplexNode: SqlFieldNode {
     }
 }
 
+public class SqlWindowFuncNode: SqlFieldNode {
+    public var funcType: WindowFuncType
+    public var body: SqlNode
+    public init(_ name: String, funcType: WindowFuncType, body: SqlNode) {
+        self.funcType = funcType
+        self.body = body
+        super.init(name, type: .WINDOWFUNC)
+    }
+
+    override public func toString() -> String {
+        return "SqlWindowFuncNode: \(funcType), \(body.toString())"
+    }
+}
+
 public class SqlNestedNode: SqlNode {
     public var node: SqlNode
     public init(_ node: SqlNode) {
@@ -235,16 +236,30 @@ public class SqlSelectNode: SqlNode {
     public var fields: [SqlFieldNode]
     public var joins: [SqlJoinNode]
     public var filter: SqlNode?
+    public var sqlErrors: [SqlBuilderError]
+    public private(set) var errorMsg: String?
 
     private init() {
         self.tables = [SqlTableNode]()
         self.fields = [SqlFieldNode]()
         self.joins = [SqlJoinNode]()
+        self.sqlErrors = [SqlBuilderError]()
         super.init(type: .SELECT)
     }
 
     static func make() -> SqlSelectNode {
         return SqlSelectNode()
+    }
+
+    func unknownNodeError(_ nodeName: String, node: ParseTree) {
+        self.sqlErrors.append(
+            SqlBuilderError.UnknownNodeError(
+                msg: "\(nodeName): unknown type found: \(Swift.type(of: node)):\(node.getText())"))
+    }
+
+    func invalidError(_ nodeName: String, msg: String) {
+        self.sqlErrors.append(
+            SqlBuilderError.Invalid(msg: "\(nodeName): \(msg)"))
     }
 
     override public func toString() -> String {

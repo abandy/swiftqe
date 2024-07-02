@@ -141,39 +141,46 @@ public class OperationBuilder {
         self.context = context
     }
 
-    public func build<T>(_ node: Relation.RelNodeWithType) -> ((RowAccessor) -> T?) {
+    public func build<T>(_ node: Relation.RelNodeWithType) -> ((RowAccessor) -> T?)? {
         // if there is only one child then it must
         // be a NestedPredNode
-        if let nestedNode = node as? Relation.NestedTypeNode {
+        if let literalNode = node as? Relation.LiteralNode {
+            return {(data: RowAccessor) in literalNode.getValue(data: data, context: self.context)}
+        } else if let basicNode = node as? Relation.FieldBasicNode {
+            return {(data: RowAccessor) in basicNode.getValue(data: data, context: self.context)}
+        } else if let nestedNode = node as? Relation.NestedTypeNode {
             return self.build(nestedNode.child as! Relation.RelNodeWithType)
         }
 
-        let opNode = node as! Relation.OperatorNode
-
-        var left = opNode.children[0] as! Relation.RelNodeWithType
-        var right = opNode.children[1] as! Relation.RelNodeWithType
-
-        if let calcFunc = buildCalcFunc(left) as ((RowAccessor) -> T?)? {
-            left = CalculatedField(calcFunc, sqlType: opNode.type)
+        if let opNode = node as? Relation.OperatorNode {
+            var left = opNode.children[0] as! Relation.RelNodeWithType
+            var right = opNode.children[1] as! Relation.RelNodeWithType
+            
+            if let calcFunc = buildCalcFunc(left) as ((RowAccessor) -> T?)? {
+                left = CalculatedField(calcFunc, sqlType: opNode.type)
+            }
+            if let calcFunc = buildCalcFunc(right) as ((RowAccessor) -> T?)? {
+                right = CalculatedField(calcFunc, sqlType: opNode.type)
+            }
+            
+            let numericFunc =  self.numericComps[node.type]!.build(
+                lNode: left, rNode: right, op: opNode.op, context: context)
+            return {accessor in return numericFunc(accessor) as? T}
         }
-        if let calcFunc = buildCalcFunc(right) as ((RowAccessor) -> T?)? {
-            right = CalculatedField(calcFunc, sqlType: opNode.type)
-        }
-
-        let numericFunc =  self.numericComps[node.type]!.build(
-            lNode: left, rNode: right, op: opNode.op, context: context)
-        return {accessor in return numericFunc(accessor) as? T}
+        
+        return nil
     }
 
     func buildCalcFunc<T>(_ node: Relation.RelNodeWithType) -> ((RowAccessor) -> T?)? {
+        var output: ((RowAccessor) -> T?)?
         if let complex = node as? Relation.FieldComplexNode {
-            return build(complex) as ((RowAccessor) -> T?)
+            output = build(complex)
         } else if let nested = node as? Relation.NestedTypeNode {
-            return build(nested) as ((RowAccessor) -> T?)
+            output = build(nested)
         } else if let oper = node as? Relation.OperatorNode {
-            return build(oper) as ((RowAccessor) -> T?)
+            output = build(oper)
         }
 
-        return nil
+        return output
     }
 }

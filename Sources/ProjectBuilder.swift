@@ -87,6 +87,10 @@ public class ProjectBuilder {
     }
 
     public func finish() -> RecordBatch {
+        for index in 0..<fields.count {
+            fields[index].finish(appendFunc: colBuilders[index].appendFunc!)
+        }
+
         let rbBuilder = RecordBatch.Builder()
         do {
             for colBuilder in colBuilders {
