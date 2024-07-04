@@ -62,7 +62,7 @@ public class QueryEngine {
                                               context: context,
                                               projectViews: projectViews,
                                               filterBuilder: filter)
-                    project.execute()
+                    project.executeColCentric()
                     return project.data
                 }
             }

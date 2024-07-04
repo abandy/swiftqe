@@ -124,4 +124,25 @@ public class ProjectTask {
 
         data = self.projectBuilder.finish()
     }
+
+    public func executeColCentric() {
+        let viewReader = ViewsReader(projectViews)
+        if let filter = filterBuilder {
+            if let validateFunc = filter.build(nil) {
+                var indicies = [UInt]()
+                for row in viewReader where validateFunc(row) {
+                    indicies.append(row.rowIndex)
+                }
+
+                self.projectBuilder.append(viewReader.rowAccessor, indicies: indicies)
+            } else {
+                self.projectBuilder.appendAll(viewReader.rowAccessor)
+            }
+        } else {
+            self.projectBuilder.appendAll(viewReader.rowAccessor)
+        }
+
+        data = self.projectBuilder.finish()
+    }
+
 }

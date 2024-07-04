@@ -460,31 +460,28 @@ public class JoinView: TableViewProtocol, Sequence {
 public class ViewsReader: Sequence {
     public var id = uniqueId.loadThenWrappingIncrement(ordering: .relaxed)
     let views: [TableViewProtocol]
-    var rowAccessor: RowAccessor?
+    var rowAccessor: RowAccessor
     var includeAll: Bool {return false}
     public private(set) var count: UInt = 0
 
     init(_ views: [TableViewProtocol]) {
         self.views = views
+        self.rowAccessor = ViewsRowAccessor(views: self.views)
         for view in self.views where view.count > self.count {
             count = view.count
         }
     }
 
     subscript(_ index: UInt) -> RowAccessor? {
-        if self.rowAccessor == nil {
-            self.rowAccessor = ViewsRowAccessor(views: self.views)
-        }
-
         if index < self.count {
-            if rowAccessor!.to(rowIndex: index) {
+            if rowAccessor.to(rowIndex: index) {
                 return rowAccessor
             }
         }
 
         return nil
     }
-
+    
     public func makeIterator() -> TablesSubsetProcessorIterator {
         return TablesSubsetProcessorIterator(self)
     }

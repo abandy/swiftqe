@@ -86,6 +86,29 @@ public class ProjectBuilder {
         }
     }
 
+    public func append(_ rowAccessor: RowAccessor, indicies: [UInt]) {
+        for fieldIndex in 0..<fields.count {
+            _ = rowAccessor.to(rowIndex: 0)
+            let field = fields[fieldIndex]
+            let localAppendFunc = colBuilders[fieldIndex].appendFunc!
+            for index in 0..<indicies.count {
+                _ = rowAccessor.to(rowIndex: indicies[index])
+                field.load(rowAccessor, appendFunc: localAppendFunc)
+            }
+        }
+    }
+
+    public func appendAll(_ rowAccessor: RowAccessor) {
+        for fieldIndex in 0..<fields.count {
+            let field = fields[fieldIndex]
+            let localAppendFunc = colBuilders[fieldIndex].appendFunc!
+            for index in 0..<rowAccessor.count {
+                _ = rowAccessor.to(rowIndex: index)
+                field.load(rowAccessor, appendFunc: localAppendFunc)
+            }
+        }
+    }
+
     public func finish() -> RecordBatch {
         for index in 0..<fields.count {
             fields[index].finish(appendFunc: colBuilders[index].appendFunc!)
