@@ -222,7 +222,7 @@ extension FieldWindowFuncDef {
         var data: T?
         override func load(_ data: Any?, appendFunc: ((Any?) -> Void)) {
             if data == nil { return; }
-            var funcData = data as! T
+            let funcData = data as! T
             if self.data == nil || funcData < self.data! { self.data = funcData }
         }
         
@@ -233,7 +233,7 @@ extension FieldWindowFuncDef {
         var data: T?
         override func load(_ data: Any?, appendFunc: ((Any?) -> Void)) {
             if data == nil { return; }
-            var funcData = data as! T
+            let funcData = data as! T
             if self.data == nil || funcData < self.data! { self.data = funcData }
         }
         
@@ -244,7 +244,7 @@ extension FieldWindowFuncDef {
         var data: T?
         override func load(_ data: Any?, appendFunc: ((Any?) -> Void)) {
             if data == nil { return; }
-            var funcData = data as! T
+            let funcData = data as! T
             if self.data == nil || self.data! < funcData { self.data = funcData }
         }
         
@@ -255,7 +255,7 @@ extension FieldWindowFuncDef {
         var data: T?
         override func load(_ data: Any?, appendFunc: ((Any?) -> Void)) {
             if data == nil { return; }
-            var funcData = data as! T
+            let funcData = data as! T
             if self.data == nil || self.data! < funcData { self.data = funcData }
         }
         

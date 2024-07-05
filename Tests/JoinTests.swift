@@ -65,6 +65,28 @@ final class JoinTests: XCTestCase {
         XCTAssertEqual(queryRb.length, UInt(100))
     }
 
+    func testInnerComplex() throws {
+        var infos = [TestInfo]()
+        for index in 0..<500 {
+            infos.append(TestInfo(one: Int32(index), two: "Test\(index)"))
+        }
+
+        var info2s = [TestInfo2]()
+        for index in 0..<1000 {
+            info2s.append(TestInfo2(five: Int32(index * 5), six: "Test\(index)"))
+        }
+
+        let dmlInput = """
+                    SELECT tab.one as three, tab.two, tab2.five as five, tab2.six
+                    FROM tab INNER JOIN tab2 ON tab.one = tab2.five and (tab.one = 5 or tab.one = 10)
+                    """
+        let engine = QueryEngine()
+        engine.add(try ArrowEncoder.encode(infos)!, name: "tab")
+        engine.add(try ArrowEncoder.encode(info2s)!, name: "tab2")
+        let queryRb: RecordBatch = try engine.run(dmlInput)!
+        XCTAssertEqual(queryRb.length, UInt(2))
+    }
+
     func testLeftOuter() throws {
         var infos = [TestInfo]()
         for index in 0..<500 {

@@ -6,16 +6,47 @@
 import Foundation
 import Arrow
 
-public class FilterBuilder {
-    let wrapper: PredicateBuilder
-    var context: QueryContext
+public protocol FilterBuilder {
+    var context: QueryContext { get }
+    var predicateNode: Relation.PredicateNode { get }
+    func build(_ tdef: TableDef?) -> ((RowAccessor, (RowAccessor) -> Void) -> Bool)?;
+    func process(_ myRows: RowAccessor,
+                        appendFunc: @escaping (RowAccessor) -> Void,
+                        validateFunc: ((RowAccessor, (RowAccessor) -> Void) -> Bool));
+}
+
+public class FilterBuilderRow: FilterBuilder {
+    public let wrapper: PredicateBuilder
+    public var predicateNode: Relation.PredicateNode { wrapper.predicateNode }
+    public var context: QueryContext
     public init(predicate: Relation.PredicateNode, context: QueryContext) {
         self.context = context
         self.wrapper = PredicateBuilder(predicate, context: context)
     }
 
-    public func build(_ tdef: TableDef?) -> ((RowAccessor) -> Bool)? {
-        return self.wrapper.build(tdef)
+    public func build(_ tdef: TableDef?) -> ((RowAccessor, (RowAccessor) -> Void) -> Bool)? {
+        let predFunc = self.wrapper.build(tdef)
+        if predFunc != nil {
+            return {(row, appendFunc) in
+                if predFunc!(row) {
+                    appendFunc(row)
+                    return true
+                }
+                
+                return false
+            }
+        }
+        
+        return nil
+    }
+    
+    public func process(_ myRows: RowAccessor,
+                        appendFunc: @escaping (RowAccessor) -> Void,
+                        validateFunc: ((RowAccessor, (RowAccessor) -> Void) -> Bool)) {
+        for index in 0..<myRows.count {
+            _ = myRows.to(rowIndex: index)
+            _ = validateFunc(myRows, appendFunc)
+        }
     }
 }
 
@@ -49,8 +80,9 @@ public class RBTableScanTask: Sequence {
     public func execute() {
         if let filter = self.filterBuilder {
             if let validateFunc = filter.build(self.tview.tdef) {
-                for row in self where validateFunc(row) {
-                    self.tview.append(row.rowIndex)
+                let appendFunc = {(row: RowAccessor) in self.tview.append(row.rowIndex)}
+                for row in self {
+                    _ = validateFunc(row, appendFunc)
                 }
             } else {
                 self.tview.includeAll = true
@@ -79,7 +111,7 @@ public class RBInnerJoinTask {
 
     public func execute() {
         let joinDef = self.ij.join
-        let filter = FilterBuilder(predicate: joinDef.predicate as! Relation.PredicateNode, context: context)
+        let filter = FilterBuilderRow(predicate: joinDef.predicate as! Relation.PredicateNode, context: context)
         self.joinView = JoinHelper.innerJoin(filter, lhs: self.lhs, rhs: self.rhs, joinType: joinDef.type)
     }
 }
@@ -105,19 +137,19 @@ public class ProjectTask {
     }
 
     public func execute() {
-        let rowAccessor = ViewsReader(projectViews)
+        let viewReader = ViewsReader(projectViews)
         if let filter = filterBuilder {
             if let validateFunc = filter.build(nil) {
-                for row in rowAccessor where validateFunc(row) {
-                    self.load(row)
-                }
+                let appendFunc = {(row: RowAccessor) in self.load(row)}
+                let filterRows = viewReader.rowAccessor.clone()
+                filter.process(filterRows, appendFunc: appendFunc, validateFunc: validateFunc)
             } else {
-                for row in rowAccessor {
+                for row in viewReader {
                     self.load(row)
                 }
             }
         } else {
-            for row in rowAccessor {
+            for row in viewReader {
                 self.load(row)
             }
         }
@@ -130,9 +162,9 @@ public class ProjectTask {
         if let filter = filterBuilder {
             if let validateFunc = filter.build(nil) {
                 var indicies = [UInt]()
-                for row in viewReader where validateFunc(row) {
-                    indicies.append(row.rowIndex)
-                }
+                let appendFunc = {(row: RowAccessor) in indicies.append(row.rowIndex)}
+                let filterRows = viewReader.rowAccessor.clone()
+                filter.process(filterRows, appendFunc: appendFunc, validateFunc: validateFunc)
 
                 self.projectBuilder.append(viewReader.rowAccessor, indicies: indicies)
             } else {

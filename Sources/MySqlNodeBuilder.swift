@@ -84,7 +84,9 @@ public class MySqlNodeBuilder {
         override func visitChildren(_ node: RuleNode) -> SqlNode? {
             for index in 0..<node.getChildCount() {
                 let childNode = node[index]
-                if childNode is MySqlParser.PredicateExpressionContext {
+                if childNode is MySqlParser.LogicalExpressionContext {
+                    return childNode.accept(LogicalExpressionVisitor(selectNode, context: self.context))
+                } else if childNode is MySqlParser.PredicateExpressionContext {
                     return childNode.accept(PredicateExpTreeVisitor(selectNode, context: self.context))
                 } else if !(childNode is TerminalNode) {
                     self.selectNode.unknownNodeError("JoinSpecVisitor", node: childNode)

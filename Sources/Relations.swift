@@ -12,21 +12,6 @@ public enum SqlError: Error {
     case invalid(String)
 }
 
-public protocol RowAccessor {
-    var rowIndex: UInt {get}
-    var count: UInt {get}
-    subscript(_ index: Int) -> Any? {get}
-    func to(rowIndex: UInt) -> Bool
-}
-
-public class EmptyRA: RowAccessor {
-    public var rowIndex: UInt { 0 }
-    public var count: UInt { 0 }
-    public func to(rowIndex: UInt) -> Bool { false}
-    public static let empty = EmptyRA()
-    public subscript(_ index: Int) -> Any? { return nil }
-}
-
 public class FieldOverride {
     var getValue: ((RowAccessor) -> Any?)?
 }

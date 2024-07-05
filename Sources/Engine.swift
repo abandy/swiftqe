@@ -31,7 +31,7 @@ public class QueryEngine {
             
             if let selectNode = relation as? Relation.SelectNode {
                 if let predicateNode = selectNode.predicate {
-                    filter = FilterBuilder(predicate: predicateNode, context: context)
+                    filter = FilterBuilderRow(predicate: predicateNode, context: context)
                 }
             }
             

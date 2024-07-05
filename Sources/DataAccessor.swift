@@ -6,6 +6,23 @@
 import Foundation
 import Arrow
 
+public protocol RowAccessor {
+    var rowIndex: UInt {get}
+    var count: UInt {get}
+    subscript(_ index: Int) -> Any? {get}
+    func to(rowIndex: UInt) -> Bool
+    func clone() -> RowAccessor
+}
+
+public class EmptyRA: RowAccessor {
+    public var rowIndex: UInt { 0 }
+    public var count: UInt { 0 }
+    public func to(rowIndex: UInt) -> Bool { false}
+    public static let empty = EmptyRA()
+    public subscript(_ index: Int) -> Any? { return nil }
+    public func clone() -> RowAccessor { return self }
+}
+
 public class TableRowAccessor: RowAccessor {
     public var rowIndex: UInt = 0
     public var count: UInt { UInt(row?.count ?? 0) }
@@ -17,6 +34,8 @@ public class TableRowAccessor: RowAccessor {
         self.table = table
     }
 
+    public func clone() -> RowAccessor { return TableRowAccessor(self.table) }
+    
     public func next() -> Bool {
         if self.rowIndex < self.table.length {
             self.row = self.table.data[Int(self.rowIndex)]
@@ -43,35 +62,6 @@ public class TableRowAccessor: RowAccessor {
 
         return nil
     }
-
-    public class TableRowData: RowAccessor {
-        public var rowIndex: UInt = 0
-        public var count: UInt { UInt(row.count) }
-
-        let row: [Any]
-        init(_ row: [Any], rowIndex: UInt) {
-            self.row = row
-            self.rowIndex = rowIndex
-        }
-
-        public func to(rowIndex: UInt) -> Bool {return false}
-
-        public subscript(_ index: Int) -> Any? {
-            if index < row.count {
-                return row[index]
-            }
-
-            return nil
-        }
-
-        public func copy() -> RowAccessor {
-            return self
-        }
-    }
-
-    public func copy() -> RowAccessor {
-        return TableRowData(row!, rowIndex: rowIndex - 1)
-    }
 }
 
 public class RBRowAccessor: RowAccessor {
@@ -90,6 +80,16 @@ public class RBRowAccessor: RowAccessor {
         }
     }
 
+    private init(_ rb: RecordBatch, tdef: TableDef, ftoC: [Int: ArrowArrayHolder]) {
+        self.rb = rb
+        self.tdef = tdef
+        self.fieldToColumn = ftoC
+    }
+    
+    public func clone() -> RowAccessor {
+        return RBRowAccessor(self.rb, tdef: self.tdef, ftoC: self.fieldToColumn)
+    }
+    
     public func next() -> Bool {
         if self.rowIndex < self.rb.length {
             self.rowIndex = self.nextIndex
@@ -120,27 +120,6 @@ public class RBRowAccessor: RowAccessor {
 
         return nil
     }
-
-    public class RowData: RowAccessor {
-        public var rowIndex: UInt = 0
-        public var count: UInt { 1 }
-        let lookup: [Int: ArrowArrayHolder]
-        init(_ lookup: [Int: ArrowArrayHolder], rowIndex: UInt) {
-            self.lookup = lookup
-            self.rowIndex = rowIndex
-
-        }
-
-        public func to(rowIndex: UInt) -> Bool {return false}
-
-        public subscript(_ index: Int) -> Any? {
-            if let colData = lookup[index]!.array as? AnyArray {
-                return colData.asAny(UInt(self.rowIndex))
-            }
-
-            return nil
-        }
-    }
 }
 
 public struct FieldInfo {
@@ -155,6 +134,18 @@ public class ViewsRowAccessor: RowAccessor {
     private let views: [TableViewProtocol]
     private var fieldLookup = [Int: FieldInfo]()
     private var indicies: [[UInt]]?
+
+    private init(_ views: [TableViewProtocol], indicies: [[UInt]], count: UInt, ftoC: [Int: FieldInfo]) {
+        self.views = views
+        self.count = count
+        self.indicies = indicies
+        self.fieldLookup = ftoC
+    }
+
+    public func clone() -> RowAccessor {
+        return ViewsRowAccessor(self.views, indicies: self.indicies!,
+                                count: self.count, ftoC: self.fieldLookup)
+    }
 
     init(views: [TableViewProtocol], indicies: [[UInt]]? = nil) {
         self.views = views
@@ -215,30 +206,6 @@ public class ViewsRowAccessor: RowAccessor {
 
         return nil
     }
-
-    public class RowData: RowAccessor {
-        public var rowIndex: UInt
-        public var count: UInt { 1 }
-        public let columnCount: UInt
-        private let fieldLookup: [Int: FieldInfo]
-
-        init(_ fieldLookup: [Int: FieldInfo], rowIndex: UInt) {
-            self.fieldLookup = fieldLookup
-            self.rowIndex = rowIndex
-            columnCount = UInt(self.fieldLookup.count)
-        }
-
-        public func to(rowIndex: UInt) -> Bool {return false}
-
-        public subscript(_ index: Int) -> Any? {
-            if let fieldInfo = fieldLookup[index] {
-                let colData = fieldInfo.holder.array as! AnyArray
-                return colData.asAny(self.rowIndex)
-            }
-
-            return nil
-        }
-    }
 }
 
 public class JoinsRowAccessor: RowAccessor {
@@ -247,6 +214,16 @@ public class JoinsRowAccessor: RowAccessor {
     public private(set) var count: UInt = 0
     private let views: JoinView
     private var fieldLookup = [Int: FieldInfo]()
+
+    private init(_ views: JoinView, ftoC: [Int: FieldInfo]) {
+        self.views = views
+        self.count = views.count
+        self.fieldLookup = ftoC
+    }
+
+    public func clone() -> RowAccessor {
+        return JoinsRowAccessor(self.views, ftoC: self.fieldLookup)
+    }
 
     init(views: JoinView) {
         self.views = views
@@ -287,29 +264,5 @@ public class JoinsRowAccessor: RowAccessor {
         }
 
         return nil
-    }
-
-    public class RowData: RowAccessor {
-        public var rowIndex: UInt
-        public var count: UInt { 1 }
-        public let columnCount: UInt
-        private let fieldLookup: [Int: FieldInfo]
-
-        init(_ fieldLookup: [Int: FieldInfo], rowIndex: UInt) {
-            self.fieldLookup = fieldLookup
-            self.rowIndex = rowIndex
-            columnCount = UInt(self.fieldLookup.count)
-        }
-
-        public func to(rowIndex: UInt) -> Bool {return false}
-
-        public subscript(_ index: Int) -> Any? {
-            if let fieldInfo = fieldLookup[index] {
-                let colData = fieldInfo.holder.array as! AnyArray
-                return colData.asAny(self.rowIndex)
-            }
-
-            return nil
-        }
     }
 }

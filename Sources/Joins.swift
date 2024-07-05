@@ -79,16 +79,18 @@ public class NestedJoin {
             let lrow = self.lhs[lindex]!
             for override in overrides {
                 if let basicField = override.value as? FieldBasicDef {
-                    let output = lrow[basicField.dataOffset]
+                    let output = lrow[basicField.id]
                     parameters[override.key]!.getValue = {_ in output}
                 }
             }
 
+            var appendRowIndex: UInt = 0
+            let appendFunc = {(row: RowAccessor) in
+                views.append([lrow.rowIndex, appendRowIndex])}
             for rindex in 0..<self.rhs.count {
                 let rrow = self.rhs[rindex]!
-                if validateFunc(rrow) {
-                    views.append([lrow.rowIndex, rrow.rowIndex])
-                }
+                appendRowIndex = rrow.rowIndex
+                _ = validateFunc(rrow, appendFunc)
             }
         }
     }
@@ -99,7 +101,7 @@ public class JoinHelper {
                                  lhs: TableViewProtocol,
                                  rhs: TableViewProtocol,
                                  joinType: JoinType) -> JoinView {
-        let predicate = filter.wrapper.predicateNode
+        let predicate = filter.predicateNode
         let views = JoinView([lhs, rhs], joinType: joinType)
         if let col1 = predicate.children[0] as? Relation.FieldBasicNode,
             let col2 = predicate.children[1] as? Relation.FieldBasicNode {
@@ -118,8 +120,11 @@ public class JoinHelper {
                 views.finish()
                 return views
             }
+        } else {
+            let join: NestedJoin = NestedJoin(lhs: lhs, rhs: rhs, filter: filter)
+            join.scan(views: views)
+            views.finish()
+            return views
         }
-
-        return views
     }
 }
