@@ -339,6 +339,8 @@ public class Relation { // swiftlint:disable:this type_body_length
         public var predicate: PredicateNode?
         public let schema: Schema
         public let context = QueryContext()
+        public var tablePredicates = [String:PredicateNode]()
+        
         init(_ sqlSelect: SqlSelectNode, // swiftlint:disable:this cyclomatic_complexity
              schema: Schema) throws {
             self.schema = schema
@@ -477,9 +479,35 @@ public class Relation { // swiftlint:disable:this type_body_length
                     predicate = predNode.opType
                 }
 
-                return PredicateNode(predicate,
-                                     children: [try convert(predicateNode.left)!,
-                                                try convert(predicateNode.right)!])
+                let leftNode = try convert(predicateNode.left)!
+                let rightNode = try convert(predicateNode.right)!
+                let predNode = PredicateNode(predicate, children: [leftNode, rightNode])
+                
+                if predicateNode.predicate is SqlOperatorNode {
+                    if leftNode is FieldBasicNode && rightNode is LiteralNode {
+                        let leftFieldNode = leftNode as! FieldBasicNode
+                        if let tableName = leftFieldNode.definition.tableDef?.name {
+                            if tablePredicates[tableName] == nil {
+                                tablePredicates[tableName] = predNode
+                            } else {
+                                tablePredicates[tableName] =
+                                PredicateNode(.OR, children: [predNode, tablePredicates[tableName]!])
+                            }
+                        }
+                    } else if leftNode is LiteralNode && rightNode is FieldBasicNode {
+                        let fieldNode = rightNode as! FieldBasicNode
+                        if let tableName = fieldNode.definition.tableDef?.name {
+                            if tablePredicates[tableName] == nil {
+                                tablePredicates[tableName] = predNode
+                            } else {
+                                tablePredicates[tableName] =
+                                PredicateNode(.OR, children: [predNode, tablePredicates[tableName]!])
+                            }
+                        }
+                    }
+                }
+                
+                return predNode
             default:
                 return nil
             }

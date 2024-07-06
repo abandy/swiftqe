@@ -27,12 +27,13 @@ public class QueryEngine {
             }
             
             let relation = try Relation.convertQuery(sqlNode, schema: schema)
-            var filter: FilterBuilder?
+            guard let selectNode = relation as? Relation.SelectNode else {
+                throw EngineError.generic("Expected SelectNode type but found: \(Swift.type(of: relation))")
+            }
             
-            if let selectNode = relation as? Relation.SelectNode {
-                if let predicateNode = selectNode.predicate {
-                    filter = FilterBuilderRow(predicate: predicateNode, context: context)
-                }
+            var filter: FilterBuilder?
+            if let predicateNode = selectNode.predicate {
+                filter = FilterBuilderRow(predicate: predicateNode, context: context)
             }
             
             let tasks = try Planner.make(relNode: relation!)
@@ -52,8 +53,14 @@ public class QueryEngine {
                 case .TABLESCAN:
                     let ts = task as! TableScan
                     let rb = catalog[ts.table.name]!
+                    var tableFilter: FilterBuilder?
+                    let tablePred = selectNode.tablePredicates[ts.table.name]
+                    if tablePred != nil {
+                        tableFilter = FilterBuilderRow(predicate: tablePred!, context: context)
+                    }
+                    
                     let scanTask = RBTableScanTask(TableView(rb, tdef: ts.table.tableDef),
-                                                   filterBuilder: filter)
+                                                   filterBuilder: tableFilter)
                     scanTask.execute()
                     views[ts.table.tableDef.id] = scanTask.tview
                     projectViews.append(scanTask.tview)

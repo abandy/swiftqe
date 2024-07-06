@@ -87,10 +87,10 @@ public class NestedJoin {
             var appendRowIndex: UInt = 0
             let appendFunc = {(row: RowAccessor) in
                 views.append([lrow.rowIndex, appendRowIndex])}
-            for rindex in 0..<self.rhs.count {
-                let rrow = self.rhs[rindex]!
+            if self.rhs.count > 0 {
+                let rrow = self.rhs[0]!
                 appendRowIndex = rrow.rowIndex
-                _ = validateFunc(rrow, appendFunc)
+                filter.process(rrow, appendFunc: appendFunc, validateFunc: validateFunc)
             }
         }
     }
