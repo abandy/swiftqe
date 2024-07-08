@@ -370,8 +370,10 @@ public class Relation { // swiftlint:disable:this type_body_length
                 }
             }
 
+            var windowFieldCnt = 0
             for sqlField in sqlSelect.fields {
                 if let aggField = sqlField as? SqlWindowFuncNode {
+                    windowFieldCnt += 1
                     let childNode = try convert(aggField)
                     fields.append(childNode as! FieldWindowFuncNode)
                 } else if let complexField = sqlField as? SqlFieldComplexNode {
@@ -392,6 +394,10 @@ public class Relation { // swiftlint:disable:this type_body_length
                 }
             }
 
+            if windowFieldCnt > 0 && windowFieldCnt != fields.count {
+                throw SqlError.invalid("Aggregate functions can currently only be used with each other.")
+            }
+            
             if sqlSelect.filter != nil {
                 predicate = (try convert(sqlSelect.filter!) as! PredicateNode)
             }

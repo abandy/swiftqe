@@ -1,4 +1,3 @@
 [submodule "arrow"]
 	path = arrow
-	url = git@github.com:abandy/arrow.git
-        branch = 42021
+	url = git@github.com:apache/arrow.git

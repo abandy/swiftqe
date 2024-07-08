@@ -35,6 +35,22 @@ extension WindowFunc {
 
     static func toDouble(_ sqlType: SqlType, data: Any) -> Double {
         switch sqlType {
+        case .INT8:
+            return Double(data as! Int8)
+        case .INT16:
+            return Double(data as! Int16)
+        case .INT32:
+            return Double(data as! Int32)
+        case .INT64:
+            return Double(data as! Int64)
+        case .UINT8:
+            return Double(data as! UInt8)
+        case .UINT16:
+            return Double(data as! UInt16)
+        case .UINT32:
+            return Double(data as! UInt32)
+        case .UINT64:
+            return Double(data as! UInt64)
         case .FLOAT:
             return Double(data as! Float)
         case .DOUBLE:
@@ -62,6 +78,10 @@ extension WindowFunc {
             return Int64(data as! UInt32)
         case .UINT64:
             return Int64(data as! UInt64)
+        case .DOUBLE:
+            return Int64(data as! Double)
+        case .FLOAT:
+            return Int64(data as! Float)
         default:
             return 0
         }
@@ -83,6 +103,8 @@ extension FieldWindowFuncDef {
             return MinMaxFunc.minFor(sqlType)
         case .MAX:
             return MinMaxFunc.maxFor(sqlType)
+        case .STDDEV:
+            return StdDevPop(sqlType)
         }
     }
     
@@ -138,11 +160,11 @@ extension FieldWindowFuncDef {
         }
         
         func load(_ data: Any?, appendFunc: ((Any?) -> Void)) {
-            count += 1
             if data == nil {
                 return;
             }
             
+            self.count += 1
             self.data += AvgDouble.toDouble(sqlType, data: data!)
         }
         
@@ -161,11 +183,11 @@ extension FieldWindowFuncDef {
         }
         
         func load(_ data: Any?, appendFunc: ((Any?) -> Void)) {
-            count += 1
             if data == nil {
                 return;
             }
             
+            self.count += 1
             self.data += AvgInt.toInt(sqlType, data: data!)
         }
         
@@ -260,5 +282,32 @@ extension FieldWindowFuncDef {
         }
         
         override func finish(appendFunc: ((Any?) -> Void)) { appendFunc(self.data) }
+    }
+    
+    class StdDevPop: WindowFunc {
+        var mean: Double = 0
+        var count: UInt64 = 0
+        var variance: Double = 0
+        var sqlType: SqlType
+        var funcSqlType = SqlType.DOUBLE
+        required init(_ sqlType: SqlType) {
+            self.sqlType = sqlType
+        }
+        
+        func load(_ data: Any?, appendFunc: ((Any?) -> Void)) {
+            if data == nil {
+                return;
+            }
+            
+            self.count += 1
+            let val = StdDevPop.toDouble(sqlType, data: data!)
+            let meanNext = mean + (val - mean) / Double(self.count)
+            variance = variance + (val - mean) * (val - meanNext)
+            self.mean = meanNext
+        }
+        
+        func finish(appendFunc: ((Any?) -> Void)) {
+            appendFunc((self.variance/Double(self.count)).squareRoot())
+        }
     }
 }

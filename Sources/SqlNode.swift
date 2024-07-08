@@ -28,7 +28,7 @@ public enum SqlNodeType: String {
 }
 
 public enum WindowFuncType: String {
-    case SUM, AVG, MIN, MAX
+    case SUM, AVG, MIN, MAX, STDDEV
 }
 
 public class SqlNode {

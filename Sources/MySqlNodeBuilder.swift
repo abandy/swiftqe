@@ -268,6 +268,11 @@ public class MySqlNodeBuilder {
                             MySqlNodeBuilder.fieldNameGenerator.next(),
                             funcType: WindowFuncType(rawValue: aggNode.MAX()!.getText())!,
                             body: innerNode!)
+                    } else if aggNode.STDDEV() != nil {
+                        return SqlWindowFuncNode(
+                            MySqlNodeBuilder.fieldNameGenerator.next(),
+                            funcType: WindowFuncType(rawValue: aggNode.STDDEV()!.getText())!,
+                            body: innerNode!)
                     }
                 } else if !(childNode is TerminalNode) {
                     self.selectNode.unknownNodeError("AggregateFunctionCallVisitor", node: childNode)

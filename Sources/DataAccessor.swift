@@ -111,10 +111,8 @@ public class RBRowAccessor: RowAccessor {
 
     public subscript(_ index: Int) -> Any? {
         if let column = fieldToColumn[index] {
-            if let colData = column.array as? AnyArray {
-                if rowIndex < rb.length {
-                    return colData.asAny(self.rowIndex)
-                }
+            if rowIndex < rb.length {
+                return column.array.asAny(self.rowIndex)
             }
         }
 
@@ -189,7 +187,7 @@ public class ViewsRowAccessor: RowAccessor {
 
     public subscript(_ index: Int) -> Any? {
         if let fieldInfo = fieldLookup[index] {
-            let colData = fieldInfo.holder.array as! AnyArray
+            let colData = fieldInfo.holder.array
             if self.rowIndex < self.views[fieldInfo.index].count {
                 if self.views[fieldInfo.index].includeAll {
                     return colData.asAny(self.rowIndex)
@@ -258,7 +256,7 @@ public class JoinsRowAccessor: RowAccessor {
 
     public subscript(_ index: Int) -> Any? {
         if let fieldInfo = fieldLookup[index] {
-            let colData = fieldInfo.holder.array as! AnyArray
+            let colData = fieldInfo.holder.array
             let colRowIndex = self.views.tableIndexes[fieldInfo.index]
             return colData.asAny(colRowIndex[Int(self.rowIndex)])
         }

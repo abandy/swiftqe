@@ -46,22 +46,16 @@ final class AggregateTests: XCTestCase {
     func testSUM() throws {
         do {
             let testOps = getTestData()
-            let queryInfos = [
-                (query: "SELECT SUM(int8Field) as sumField FROM tab", rowCnt: 10, colCnt: 10)
-            ]
-            
+            let query = "SELECT SUM(int8Field) as sumField FROM tab"
             let engine = QueryEngine()
             engine.add(try ArrowEncoder.encode(testOps)!, name: "tab")
-            for infoIndex in 0..<queryInfos.count {
-                let info = queryInfos[infoIndex]
-                let rb = try engine.run(info.query)!
-                XCTAssertEqual(rb.length, 1)
-                XCTAssertEqual(rb.columnCount, 1)
-                let expectedValue = 450
-                for column in rb.columns {
-                    let asString = column.array as! AsString
-                    XCTAssertEqual(asString.asString(0), "\(expectedValue)")
-                }
+            let rb = try engine.run(query)!
+            XCTAssertEqual(rb.length, 1)
+            XCTAssertEqual(rb.columnCount, 1)
+            let expectedValue = 450
+            for column in rb.columns {
+                let asString = column.array as! AsString
+                XCTAssertEqual(asString.asString(0), "\(expectedValue)")
             }
         } catch let error {
             XCTFail("Error occured executing query: \(error)")
@@ -71,22 +65,16 @@ final class AggregateTests: XCTestCase {
     func testAVG() throws {
         do {
             let testOps = getTestData()
-            let queryInfos = [
-                (query: "SELECT AVG(int8Field) as sumField FROM tab", rowCnt: 10, colCnt: 10)
-            ]
-            
+            let query = "SELECT AVG(int8Field) as sumField FROM tab"
             let engine = QueryEngine()
             engine.add(try ArrowEncoder.encode(testOps)!, name: "tab")
-            for infoIndex in 0..<queryInfos.count {
-                let info = queryInfos[infoIndex]
-                let rb = try engine.run(info.query)!
-                XCTAssertEqual(rb.length, 1)
-                XCTAssertEqual(rb.columnCount, 1)
-                let expectedValue = 45
-                for column in rb.columns {
-                    let asString = column.array as! AsString
-                    XCTAssertEqual(asString.asString(0), "\(expectedValue)")
-                }
+            let rb = try engine.run(query)!
+            XCTAssertEqual(rb.length, 1)
+            XCTAssertEqual(rb.columnCount, 1)
+            let expectedValue = 45
+            for column in rb.columns {
+                let asString = column.array as! AsString
+                XCTAssertEqual(asString.asString(0), "\(expectedValue)")
             }
         } catch let error {
             XCTFail("Error occured executing query: \(error)")
@@ -96,22 +84,16 @@ final class AggregateTests: XCTestCase {
     func testMIN() throws {
         do {
             let testOps = getTestData()
-            let queryInfos = [
-                (query: "SELECT MIN(int8Field) as sumField FROM tab", rowCnt: 10, colCnt: 10)
-            ]
-            
+            let query = "SELECT MIN(int8Field) as sumField FROM tab"
             let engine = QueryEngine()
             engine.add(try ArrowEncoder.encode(testOps)!, name: "tab")
-            for infoIndex in 0..<queryInfos.count {
-                let info = queryInfos[infoIndex]
-                let rb = try engine.run(info.query)!
-                XCTAssertEqual(rb.length, 1)
-                XCTAssertEqual(rb.columnCount, 1)
-                let expectedValue = 0
-                for column in rb.columns {
-                    let asString = column.array as! AsString
-                    XCTAssertEqual(asString.asString(0), "\(expectedValue)")
-                }
+            let rb = try engine.run(query)!
+            XCTAssertEqual(rb.length, 1)
+            XCTAssertEqual(rb.columnCount, 1)
+            let expectedValue = 0
+            for column in rb.columns {
+                let asString = column.array as! AsString
+                XCTAssertEqual(asString.asString(0), "\(expectedValue)")
             }
         } catch let error {
             XCTFail("Error occured executing query: \(error)")
@@ -121,23 +103,65 @@ final class AggregateTests: XCTestCase {
     func testMAX() throws {
         do {
             let testOps = getTestData()
-            let queryInfos = [
-                (query: "SELECT MAX(int8Field) as sumField FROM tab", rowCnt: 10, colCnt: 10)
-            ]
-
+            let query = "SELECT MAX(int8Field) as sumField FROM tab"
             let engine = QueryEngine()
             engine.add(try ArrowEncoder.encode(testOps)!, name: "tab")
-            for infoIndex in 0..<queryInfos.count {
-                let info = queryInfos[infoIndex]
-                let rb = try engine.run(info.query, failOnSqlParseError: true)!
-                XCTAssertEqual(rb.length, 1)
-                XCTAssertEqual(rb.columnCount, 1)
-                let expectedValue = 90
-                for column in rb.columns {
-                    let asString = column.array as! AsString
-                    XCTAssertEqual(asString.asString(0), "\(expectedValue)")
-                }
+            let rb = try engine.run(query, failOnSqlParseError: true)!
+            XCTAssertEqual(rb.length, 1)
+            XCTAssertEqual(rb.columnCount, 1)
+            let expectedValue = 90
+            for column in rb.columns {
+                let asString = column.array as! AsString
+                XCTAssertEqual(asString.asString(0), "\(expectedValue)")
             }
+        } catch let error {
+            XCTFail("Error occured executing query: \(error)")
+        }
+    }
+    
+    func testStdDev() throws {
+        do {
+            let data: [Int8] = [2, 7, 3, 12, 9]
+            var testOps = [TestOp]()
+            for index in 0..<data.count {
+                let testOp = TestOp()
+                testOp.int8Field = data[index]
+                testOps.append(testOp)
+            }
+            
+            let query = "SELECT STDDEV(int8Field) as sumField FROM tab"
+            
+            let engine = QueryEngine()
+            engine.add(try ArrowEncoder.encode(testOps)!, name: "tab")
+            let rb = try engine.run(query, failOnSqlParseError: true)!
+            XCTAssertEqual(rb.length, 1)
+            XCTAssertEqual(rb.columnCount, 1)
+            let expectedValue = 3.72
+            for column in rb.columns {
+                let anyArray = column.array
+                let val = anyArray.asAny(0) as! Double
+                XCTAssertEqual(String(format: "%.2f", val), "\(expectedValue)")
+            }
+        } catch let error {
+            XCTFail("Error occured executing query: \(error)")
+        }
+    }
+    
+    func testAggError() throws {
+        do {
+            let data: [Int8] = [2, 7, 3, 12, 9]
+            var testOps = [TestOp]()
+            for index in 0..<data.count {
+                let testOp = TestOp()
+                testOp.int8Field = data[index]
+                testOps.append(testOp)
+            }
+            
+            let query = "SELECT int8Field, STDDEV(int8Field) as sumField FROM tab"
+            
+            let engine = QueryEngine()
+            engine.add(try ArrowEncoder.encode(testOps)!, name: "tab")
+            XCTAssertThrowsError(try engine.run(query, failOnSqlParseError: true))
         } catch let error {
             XCTFail("Error occured executing query: \(error)")
         }
