@@ -5,6 +5,9 @@
 
 import Foundation
 import Arrow
+import Atomics
+
+let uniqueId: UnsafeAtomic<Int> = .create(0)
 
 public enum EngineError: Error {
     case generic(String)
@@ -20,25 +23,27 @@ public class QueryEngine {
         catalog[name] = rb
     }
 
-    public func run(_ query: String, failOnSqlParseError: Bool = false) throws -> RecordBatch? {
+    public func run(_ query: String,  // swiftlint:disable:this cyclomatic_complexity function_body_length
+                    failOnSqlParseError: Bool = false) throws -> RecordBatch? {
         if let sqlNode = try MySqlNodeBuilder.build(sql: query) {
             if !sqlNode.sqlErrors.isEmpty && failOnSqlParseError {
                 throw EngineError.sqlParse(errors: sqlNode.sqlErrors)
             }
-            
+
             let relation = try Relation.convertQuery(sqlNode, schema: schema)
             guard let selectNode = relation as? Relation.SelectNode else {
                 throw EngineError.generic("Expected SelectNode type but found: \(Swift.type(of: relation))")
             }
-            
+
             var filter: FilterBuilder?
             if let predicateNode = selectNode.predicate {
                 filter = FilterBuilderRow(predicate: predicateNode, context: context)
             }
-            
+
             let tasks = try Planner.make(relNode: relation!)
             var views = [Int: TableViewProtocol]()
-            var projectViews = [TableView]()
+            var projectViews = [TableViewProtocol]()
+            var groupByViews: [[TableViewProtocol]]?
             for task in tasks {
                 switch task.type {
                 case .INNERJOIN:
@@ -58,19 +63,44 @@ public class QueryEngine {
                     if tablePred != nil {
                         tableFilter = FilterBuilderRow(predicate: tablePred!, context: context)
                     }
-                    
+
                     let scanTask = RBTableScanTask(TableView(rb, tdef: ts.table.tableDef),
                                                    filterBuilder: tableFilter)
                     scanTask.execute()
                     views[ts.table.tableDef.id] = scanTask.tview
                     projectViews.append(scanTask.tview)
                 case .PROJECT:
-                    let project = ProjectTask(task as! Project,
+                    var fields = (task as! Project).fields
+                    if groupByViews != nil {
+                        for index in 0..<fields.count where fields[index] is FieldBasicDef {
+                            fields[index] = FieldGroupByDef(fieldDef: fields[index])
+                        }
+                    }
+
+                    let project = ProjectTask(fields,
+                                              context: context,
+                                              filterBuilder: filter)
+                    if let gbViews = groupByViews {
+                        for view in gbViews {
+                            project.execute(projectViews: view)
+                            project.finishRows()
+                            for index in 0..<fields.count {
+                                fields[index].reset()
+                            }
+                        }
+                    } else {
+                        project.executeColCentric(projectViews: projectViews)
+                        project.finishRows()
+                    }
+
+                    project.finish()
+                    return project.data
+                case .GROUPBY:
+                    let groupBy = GroupByTask(task as! GroupBy,
                                               context: context,
                                               projectViews: projectViews,
                                               filterBuilder: filter)
-                    project.executeColCentric()
-                    return project.data
+                    groupByViews = groupBy.execute()
                 }
             }
         } else {

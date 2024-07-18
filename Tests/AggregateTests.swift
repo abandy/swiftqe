@@ -20,7 +20,7 @@ final class AggregateTests: XCTestCase {
         var floatField: Float? = 0
         var doubleField: Double? = 0
     }
-    
+
     func getTestData() -> [TestOp] {
         var testOps = [TestOp]()
         var offset = 0
@@ -39,10 +39,10 @@ final class AggregateTests: XCTestCase {
             testOp.doubleField = Double(offset + 9)
             testOps.append(testOp)
         }
-        
+
         return testOps
     }
-    
+
     func testSUM() throws {
         do {
             let testOps = getTestData()
@@ -61,7 +61,7 @@ final class AggregateTests: XCTestCase {
             XCTFail("Error occured executing query: \(error)")
         }
     }
-    
+
     func testAVG() throws {
         do {
             let testOps = getTestData()
@@ -80,7 +80,7 @@ final class AggregateTests: XCTestCase {
             XCTFail("Error occured executing query: \(error)")
         }
     }
-    
+
     func testMIN() throws {
         do {
             let testOps = getTestData()
@@ -99,7 +99,7 @@ final class AggregateTests: XCTestCase {
             XCTFail("Error occured executing query: \(error)")
         }
     }
-    
+
     func testMAX() throws {
         do {
             let testOps = getTestData()
@@ -118,7 +118,7 @@ final class AggregateTests: XCTestCase {
             XCTFail("Error occured executing query: \(error)")
         }
     }
-    
+
     func testStdDev() throws {
         do {
             let data: [Int8] = [2, 7, 3, 12, 9]
@@ -128,9 +128,9 @@ final class AggregateTests: XCTestCase {
                 testOp.int8Field = data[index]
                 testOps.append(testOp)
             }
-            
+
             let query = "SELECT STDDEV(int8Field) as sumField FROM tab"
-            
+
             let engine = QueryEngine()
             engine.add(try ArrowEncoder.encode(testOps)!, name: "tab")
             let rb = try engine.run(query, failOnSqlParseError: true)!
@@ -146,7 +146,7 @@ final class AggregateTests: XCTestCase {
             XCTFail("Error occured executing query: \(error)")
         }
     }
-    
+
     func testAggError() throws {
         do {
             let data: [Int8] = [2, 7, 3, 12, 9]
@@ -156,9 +156,9 @@ final class AggregateTests: XCTestCase {
                 testOp.int8Field = data[index]
                 testOps.append(testOp)
             }
-            
+
             let query = "SELECT int8Field, STDDEV(int8Field) as sumField FROM tab"
-            
+
             let engine = QueryEngine()
             engine.add(try ArrowEncoder.encode(testOps)!, name: "tab")
             XCTAssertThrowsError(try engine.run(query, failOnSqlParseError: true))

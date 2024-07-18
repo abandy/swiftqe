@@ -4,15 +4,41 @@
  */
 
 import Foundation
+import CryptoKit
 import Arrow
 
 public protocol FilterBuilder {
     var context: QueryContext { get }
     var predicateNode: Relation.PredicateNode { get }
-    func build(_ tdef: TableDef?) -> ((RowAccessor, (RowAccessor) -> Void) -> Bool)?;
+    func build(_ tdef: TableDef?) -> ((RowAccessor, (RowAccessor) -> Void) -> Bool)?
     func process(_ myRows: RowAccessor,
+                 appendFunc: @escaping (RowAccessor) -> Void,
+                 validateFunc: ((RowAccessor, (RowAccessor) -> Void) -> Bool))
+}
+
+public class FilterBuilderAllRows: FilterBuilder {
+    public var predicateNode: Relation.PredicateNode
+    public var context: QueryContext
+    public init(_ context: QueryContext) {
+        self.context = context
+        self.predicateNode = Relation.PredicateNode(.UNKNOWN, children: [])
+    }
+
+    public func build(_ tdef: TableDef?) -> ((RowAccessor, (RowAccessor) -> Void) -> Bool)? {
+        return {(row, appendFunc) in
+            appendFunc(row)
+            return true
+        }
+    }
+
+    public func process(_ myRows: RowAccessor,
                         appendFunc: @escaping (RowAccessor) -> Void,
-                        validateFunc: ((RowAccessor, (RowAccessor) -> Void) -> Bool));
+                        validateFunc: ((RowAccessor, (RowAccessor) -> Void) -> Bool)) {
+        for index in 0..<myRows.count {
+            _ = myRows.to(rowIndex: index)
+            _ = validateFunc(myRows, appendFunc)
+        }
+    }
 }
 
 public class FilterBuilderRow: FilterBuilder {
@@ -32,14 +58,14 @@ public class FilterBuilderRow: FilterBuilder {
                     appendFunc(row)
                     return true
                 }
-                
+
                 return false
             }
         }
-        
+
         return nil
     }
-    
+
     public func process(_ myRows: RowAccessor,
                         appendFunc: @escaping (RowAccessor) -> Void,
                         validateFunc: ((RowAccessor, (RowAccessor) -> Void) -> Bool)) {
@@ -121,14 +147,11 @@ public class ProjectTask {
     let context: QueryContext
     let filterBuilder: FilterBuilder?
     public private(set) var data: RecordBatch?
-    let projectViews: [TableView]
 
-    init(_ scan: Project, context: QueryContext, projectViews: [TableView],
-         filterBuilder: FilterBuilder?) {
+    init(_ fields: [FieldDef], context: QueryContext, filterBuilder: FilterBuilder?) {
         self.filterBuilder = filterBuilder
         self.context = context
-        self.projectViews = projectViews
-        self.projectBuilder = ProjectBuilder(fields: scan.fields,
+        self.projectBuilder = ProjectBuilder(fields: fields,
                                              context: context)
     }
 
@@ -136,7 +159,7 @@ public class ProjectTask {
         self.projectBuilder.append(rowData)
     }
 
-    public func execute() {
+    public func execute(projectViews: [TableViewProtocol]) {
         let viewReader = ViewsReader(projectViews)
         if let filter = filterBuilder {
             if let validateFunc = filter.build(nil) {
@@ -153,11 +176,9 @@ public class ProjectTask {
                 self.load(row)
             }
         }
-
-        data = self.projectBuilder.finish()
     }
 
-    public func executeColCentric() {
+    public func executeColCentric(projectViews: [TableViewProtocol]) {
         let viewReader = ViewsReader(projectViews)
         if let filter = filterBuilder {
             if let validateFunc = filter.build(nil) {
@@ -174,7 +195,114 @@ public class ProjectTask {
             self.projectBuilder.appendAll(viewReader.rowAccessor)
         }
 
-        data = self.projectBuilder.finish()
     }
 
+    public func finishRows() {
+        self.projectBuilder.finishRows()
+    }
+
+    public func finish() {
+        self.data = self.projectBuilder.finish()
+    }
+}
+
+public class GroupByTask {
+    var scan: GroupBy
+    var context: QueryContext
+    var projectViews: [TableViewProtocol]
+    var filterBuilder: FilterBuilder
+    init(_ scan: GroupBy,
+         context: QueryContext,
+         projectViews: [TableViewProtocol],
+         filterBuilder: FilterBuilder?) {
+        self.scan = scan
+        self.context = context
+        self.projectViews = projectViews
+        self.filterBuilder = filterBuilder == nil ? FilterBuilderAllRows(context) : filterBuilder!
+    }
+
+    public func execute() -> [[TableViewProtocol]] {
+        var views = [Int: [UInt]]()
+        let viewReader = ViewsReader(projectViews)
+        if let validateFunc = self.filterBuilder.build(nil) {
+            let appendFunc = {(row: RowAccessor) in
+                let hashValue = self.simpleHash(row)
+                if views[hashValue] == nil {
+                    views[hashValue] = [UInt]()
+                }
+
+                views[hashValue]?.append(row.rowIndex)
+            }
+
+            let filterRow = viewReader.rowAccessor.clone()
+            self.filterBuilder.process(filterRow, appendFunc: appendFunc, validateFunc: validateFunc)
+        }
+
+        var retTables = [[TableViewProtocol]]()
+        for indices in views.values {
+            let groupByView = GroupByView(projectViews)
+            groupByView.update(indices)
+            retTables.append([groupByView])
+        }
+
+        return retTables
+    }
+
+    public func simpleHash( // swiftlint:disable:this cyclomatic_complexity
+        _ row: RowAccessor) -> Int {
+        var data = Data()
+        let fields = scan.groupBy.fields
+        for field in fields {
+            switch field.type {
+            case .BOOLEAN:
+                let value: Bool? = field.getValue(data: row, context: self.context)
+                if let val = value { data.append(val ? 1 : 0)}
+            case .INT8:
+                appendInt(field.getValue(data: row, context: self.context) as Int8?, data: &data, field: field)
+            case .INT16:
+                appendInt(field.getValue(data: row, context: self.context) as Int16?, data: &data, field: field)
+            case .INT32:
+                appendInt(field.getValue(data: row, context: self.context) as Int32?, data: &data, field: field)
+            case .INT64:
+                appendInt(field.getValue(data: row, context: self.context) as Int64?, data: &data, field: field)
+            case .UINT8:
+                appendInt(field.getValue(data: row, context: self.context) as UInt8?, data: &data, field: field)
+            case .UINT16:
+                appendInt(field.getValue(data: row, context: self.context) as UInt16?, data: &data, field: field)
+            case .UINT32:
+                appendInt(field.getValue(data: row, context: self.context) as UInt32?, data: &data, field: field)
+            case .UINT64:
+                appendInt(field.getValue(data: row, context: self.context) as UInt64?, data: &data, field: field)
+            case .DOUBLE:
+                appendFloat(field.getValue(data: row, context: self.context) as Double?, data: &data, field: field)
+            case .FLOAT:
+                appendFloat(field.getValue(data: row, context: self.context) as Float?, data: &data, field: field)
+            case .VARCHAR:
+                let value = field.getValue(data: row, context: self.context) as String?
+                if let val = value { data.append(val.data(using: .utf8)!)}
+            }
+
+        }
+
+        var md5Hash = CryptoKit.Insecure.MD5()
+        md5Hash.update(data: data)
+        return md5Hash.finalize().hashValue
+
+    }
+
+    private func appendInt<T: FixedWidthInteger>(_ rowData: T?,
+                                                 data: inout Data,
+                                                 field: Relation.FieldNode) {
+        if let val = rowData {
+            withUnsafeBytes(of: val) { data.append(contentsOf: $0) }
+        }
+    }
+
+    private func appendFloat<T: FloatingPoint>(_ rowData: T?,
+                                               data: inout Data,
+                                               field: Relation.FieldNode) {
+        if let val = rowData {
+            withUnsafeBytes(of: val) { data.append(contentsOf: $0) }
+        }
+    }
 }

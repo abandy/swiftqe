@@ -332,20 +332,39 @@ public class Relation { // swiftlint:disable:this type_body_length
         }
     }
 
+    public class GroupByNode: RelNode {
+        public var fields: [FieldNode]
+        public init(_ fields: [FieldNode]) {
+            self.fields = fields
+            super.init()
+        }
+    }
+
     public class SelectNode: RelNode {
         public var fields = [FieldNode]()
         public var joins = [JoinNode]()
         public var tables = [TableNode]()
         public var predicate: PredicateNode?
+        public var groupBy: GroupByNode?
         public let schema: Schema
         public let context = QueryContext()
-        public var tablePredicates = [String:PredicateNode]()
-        
-        init(_ sqlSelect: SqlSelectNode, // swiftlint:disable:this cyclomatic_complexity
+        public var tablePredicates = [String: PredicateNode]()
+        private var windowFieldCnt = 0
+
+        init(_ sqlSelect: SqlSelectNode,
              schema: Schema) throws {
             self.schema = schema
             super.init()
+            try self.buildTables(sqlSelect)
+            try self.buildJoins(sqlSelect)
+            try self.buildFields(sqlSelect)
+            try self.buildGroupBy(sqlSelect)
+            if sqlSelect.filter != nil {
+                predicate = (try convert(sqlSelect.filter!) as! PredicateNode)
+            }
+        }
 
+        func buildTables(_ sqlSelect: SqlSelectNode) throws {
             for sqlTable in sqlSelect.tables {
                 if !schema.tables.keys.contains(sqlTable.name) {
                     throw SqlError.invalid("Table not found: \(sqlTable.name)")
@@ -355,52 +374,82 @@ public class Relation { // swiftlint:disable:this type_body_length
                 self.tables.append(TableNode(table))
                 self.context.tables[table.name] = table
             }
+        }
 
+        func buildJoins(_ sqlSelect: SqlSelectNode) throws {
             for join in sqlSelect.joins {
                 switch join.joinType {
                 case .INNER, .LEFT, .RIGHT:
                     self.joins.append(
                         JoinNode(join.joinType,
-                                left: schema.tables[join.left.name]!,
-                                right: schema.tables[join.right.name]!,
+                                 left: schema.tables[join.left.name]!,
+                                 right: schema.tables[join.right.name]!,
                                  predicate: try convert(join.predicate) as! RelNodeWithType))
-
                 default:
                     throw SqlError.invalid("Join type is currently not supported: \(join.joinType)")
                 }
             }
+        }
 
-            var windowFieldCnt = 0
+        func buildFields(_ sqlSelect: SqlSelectNode) throws {
             for sqlField in sqlSelect.fields {
                 if let aggField = sqlField as? SqlWindowFuncNode {
-                    windowFieldCnt += 1
+                    self.windowFieldCnt += 1
                     let childNode = try convert(aggField)
                     fields.append(childNode as! FieldWindowFuncNode)
                 } else if let complexField = sqlField as? SqlFieldComplexNode {
                     let childNode = try convert(complexField)
                     fields.append(childNode as! FieldComplexNode)
-                } else if let basicField = sqlField as? SqlFieldBasicNode {
-                    guard let field = schema.findField(basicField.name, tableName: basicField.sourceName) else {
-                        throw SqlError.invalid("Field not found with name: \(basicField.sourceName).\(basicField.name)")
-                    }
-
-                    if !self.context.contains(field) {
-                        throw SqlError.invalid("Field not found in query: \(basicField.sourceName).\(basicField.name)")
-                    }
-
-                    let basicNode = FieldBasicNode(field as! FieldBasicDef)
-                    basicNode.alias = basicField.alias
+                } else if let basicNode = try buildBasicField(sqlField) {
                     fields.append(basicNode)
                 }
             }
+        }
 
-            if windowFieldCnt > 0 && windowFieldCnt != fields.count {
+        func buildGroupBy(_ sqlSelect: SqlSelectNode) throws {
+            if let sqlGroupByNode = sqlSelect.groupBy {
+                var fieldLookup = [String: FieldNode]()
+                var groupByFields = [FieldNode]()
+                for field in fields where field is Relation.FieldBasicNode {
+                    fieldLookup[field.definition.name] = field
+                }
+
+                for sqlField in sqlGroupByNode.fields {
+                    if let fieldNode = fieldLookup[sqlField.name] {
+                        groupByFields.append(fieldNode)
+                    } else if let basicNode = try buildBasicField(sqlField) {
+                        groupByFields.append(basicNode)
+                    } else {
+                        throw SqlError.invalid("GroupBy field \(sqlField.name) not found.")
+                    }
+                }
+
+                if (windowFieldCnt + groupByFields.count) != fields.count {
+                    throw SqlError.invalid("Field(s) found that are not Aggregate or in Group By.")
+                }
+
+                groupBy = GroupByNode(groupByFields)
+            } else if windowFieldCnt > 0 && windowFieldCnt != fields.count {
                 throw SqlError.invalid("Aggregate functions can currently only be used with each other.")
             }
-            
-            if sqlSelect.filter != nil {
-                predicate = (try convert(sqlSelect.filter!) as! PredicateNode)
+        }
+
+        private func buildBasicField(_ sqlField: SqlFieldNode?) throws -> FieldNode? {
+            if let basicField = sqlField as? SqlFieldBasicNode {
+                guard let field = schema.findField(basicField.name, tableName: basicField.sourceName) else {
+                    throw SqlError.invalid("Field not found with name: \(basicField.sourceName).\(basicField.name)")
+                }
+
+                if !self.context.contains(field) {
+                    throw SqlError.invalid("Field not found in query: \(basicField.sourceName).\(basicField.name)")
+                }
+
+                let basicNode = FieldBasicNode(field as! FieldBasicDef)
+                basicNode.alias = basicField.alias
+                return basicNode
             }
+
+            return nil
         }
 
         private func convert( // swiftlint:disable:this cyclomatic_complexity function_body_length
@@ -409,13 +458,13 @@ public class Relation { // swiftlint:disable:this type_body_length
             case .WINDOWFUNC:
                 let node = sql as! SqlWindowFuncNode
                 let childNode = try convert(node.body)
-                let outputType = (childNode as! RelNodeWithType).type;
+                let outputType = (childNode as! RelNodeWithType).type
                 let winFunc = FieldWindowFuncDef.getAggFunc(node.funcType, sqlType: outputType)
                 if winFunc == nil {
                     throw EngineError.generic(
                         "Function not found for func: \(node.funcType) with type: \(outputType)")
                 }
-                
+
                 let field = FieldWindowFuncDef(node.name,
                                                winFunc: winFunc!,
                                                expression: (childNode as! RelNodeWithType))
@@ -488,7 +537,6 @@ public class Relation { // swiftlint:disable:this type_body_length
                 let leftNode = try convert(predicateNode.left)!
                 let rightNode = try convert(predicateNode.right)!
                 let predNode = PredicateNode(predicate, children: [leftNode, rightNode])
-                
                 if predicateNode.predicate is SqlOperatorNode {
                     if leftNode is FieldBasicNode && rightNode is LiteralNode {
                         let leftFieldNode = leftNode as! FieldBasicNode
@@ -512,7 +560,7 @@ public class Relation { // swiftlint:disable:this type_body_length
                         }
                     }
                 }
-                
+
                 return predNode
             default:
                 return nil

@@ -6,7 +6,7 @@
 import Foundation
 
 public enum LogicalType {
-    case TABLESCAN, PROJECT, INNERJOIN
+    case TABLESCAN, PROJECT, INNERJOIN, GROUPBY
 }
 
 public protocol PlanPart {
@@ -25,6 +25,10 @@ public protocol Project: PlanPart {
     var fields: [FieldDef] {get}
 }
 
+public protocol GroupBy: PlanPart {
+    var groupBy: Relation.GroupByNode {get}
+}
+
 extension InnerJoin {
     public var type: LogicalType { return .INNERJOIN }
 }
@@ -35,4 +39,8 @@ extension TableScan {
 
 extension Project {
     public var type: LogicalType { return .PROJECT }
+}
+
+extension GroupBy {
+    public var type: LogicalType { return .GROUPBY }
 }

@@ -593,6 +593,42 @@ public class MySqlNodeBuilder {
         }
     }
     
+    class GroupByItemVisitor: BaseSelectTreeVisitor {
+        override func visitChildren(_ node: RuleNode) -> SqlNode? {
+            for index in 0..<node.getChildCount() {
+                let childNode = node[index]
+                if childNode is MySqlParser.PredicateExpressionContext {
+                    return childNode.accept(PredicateExpTreeVisitor(selectNode, context: self.context))
+                } else if !(childNode is TerminalNode) {
+                    selectNode.unknownNodeError("GroupByItemVisitor", node: childNode)
+                }
+            }
+            
+            return nil
+        }
+    }
+    
+    class GroupByVisitor: BaseSelectTreeVisitor {
+        override func visitChildren(_ node: RuleNode) -> SqlNode? {
+            var fields = [SqlFieldNode]()
+            for index in 0..<node.getChildCount() {
+                let childNode = node[index]
+                if childNode is MySqlParser.GroupByItemContext {
+                    if let fieldNode = childNode.accept(GroupByItemVisitor(selectNode, context: self.context))
+                        as? SqlFieldNode {
+                        fields.append(fieldNode)
+                    } else {
+                        selectNode.unknownNodeError("Node type is incorrect for GROUP BY: ", node: childNode)
+                    }
+                } else if !(childNode is TerminalNode) {
+                    selectNode.unknownNodeError("GroupByVisitor", node: childNode)
+                }
+            }
+            
+            return SqlGroupByNode(fields)
+        }
+    }
+    
     class FromTreeVisitor: BaseSelectTreeVisitor {
         override func visitChildren(_ node: RuleNode) -> SqlNode? {
             for index in 0..<node.getChildCount() {
@@ -639,6 +675,11 @@ public class MySqlNodeBuilder {
                     } else if childNode is MySqlParser.SelectElementsContext {
                         let nodes = childNode.accept(ProjectionTreeVisitor(selectNode, context: self.context))
                         selectNode.fields = nodes!
+                    } else if childNode is MySqlParser.GroupByClauseContext {
+                        let node = childNode.accept(GroupByVisitor(selectNode, context: self.context))
+                        if let groupByNode = node as? SqlGroupByNode {
+                            selectNode.groupBy = groupByNode
+                        }
                     } else if !(childNode is TerminalNode){
                         selectNode.unknownNodeError("SelectTreeVisitor", node: childNode)
                     }

@@ -35,7 +35,7 @@ public class TableRowAccessor: RowAccessor {
     }
 
     public func clone() -> RowAccessor { return TableRowAccessor(self.table) }
-    
+
     public func next() -> Bool {
         if self.rowIndex < self.table.length {
             self.row = self.table.data[Int(self.rowIndex)]
@@ -85,11 +85,11 @@ public class RBRowAccessor: RowAccessor {
         self.tdef = tdef
         self.fieldToColumn = ftoC
     }
-    
+
     public func clone() -> RowAccessor {
         return RBRowAccessor(self.rb, tdef: self.tdef, ftoC: self.fieldToColumn)
     }
-    
+
     public func next() -> Bool {
         if self.rowIndex < self.rb.length {
             self.rowIndex = self.nextIndex

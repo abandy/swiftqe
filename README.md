@@ -33,3 +33,5 @@ This repo uses submodules and in order to build the arrow submodule will need to
 - MIN
 - MAX
 - STDDEV
+
+## Group By

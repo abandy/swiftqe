@@ -26,6 +26,13 @@ public class LogicalProject: Project {
     }
 }
 
+public class LogicalGroupBy: GroupBy {
+    public private(set) var groupBy: Relation.GroupByNode
+    public init(_ groupBy: Relation.GroupByNode) {
+        self.groupBy = groupBy
+    }
+}
+
 public class Planner {
     public static func make(relNode: Relation.RelNode) throws -> [PlanPart] {
         var nodes = [PlanPart]()
@@ -47,6 +54,10 @@ public class Planner {
                 default:
                     throw "Join type not supported: \(join.joinType)"
                 }
+            }
+
+            if let groupByNode = selNode.groupBy {
+                nodes.append(LogicalGroupBy(groupByNode))
             }
 
             if selNode.fields.count > 0 {

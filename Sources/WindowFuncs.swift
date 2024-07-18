@@ -10,6 +10,7 @@ public protocol WindowFunc {
     var sqlType: SqlType {get}
     var funcSqlType: SqlType {get}
     init(_ sqlType: SqlType)
+    func reset()
     func load(_ data: Any?, appendFunc: ((Any?) -> Void))
     func finish(appendFunc: ((Any?) -> Void))
 }
@@ -23,7 +24,7 @@ extension WindowFunc {
             return false
         }
     }
-    
+
     static func isInt(_ sqlType: SqlType) -> Bool {
         switch sqlType {
         case .INT8, .INT16, .INT32, .INT64, .UINT8, .UINT16, .UINT32, .UINT64:
@@ -33,7 +34,8 @@ extension WindowFunc {
         }
     }
 
-    static func toDouble(_ sqlType: SqlType, data: Any) -> Double {
+    static func toDouble(_ sqlType: SqlType, // swiftlint:disable:this cyclomatic_complexity
+                         data: Any) -> Double {
         switch sqlType {
         case .INT8:
             return Double(data as! Int8)
@@ -59,8 +61,9 @@ extension WindowFunc {
             return 0
         }
     }
-    
-    static func toInt(_ sqlType: SqlType, data: Any) -> Int64 {
+
+    static func toInt(_ sqlType: SqlType, // swiftlint:disable:this cyclomatic_complexity
+                      data: Any) -> Int64 {
         switch sqlType {
         case .INT8:
             return Int64(data as! Int8)
@@ -107,7 +110,7 @@ extension FieldWindowFuncDef {
             return StdDevPop(sqlType)
         }
     }
-    
+
     class SumDouble: WindowFunc {
         var data: Double = 0
         var sqlType: SqlType
@@ -115,20 +118,24 @@ extension FieldWindowFuncDef {
         required init(_ sqlType: SqlType) {
             self.sqlType = sqlType
         }
-        
+
         func load(_ data: Any?, appendFunc: ((Any?) -> Void)) {
             if data == nil {
-                return;
+                return
             }
-            
+
             self.data += SumDouble.toDouble(sqlType, data: data!)
         }
-        
+
+        func reset() {
+            data = 0
+        }
+
         func finish(appendFunc: ((Any?) -> Void)) {
             appendFunc(self.data)
         }
     }
-    
+
     class SumInt: WindowFunc {
         var data: Int64 = 0
         var sqlType: SqlType
@@ -136,20 +143,24 @@ extension FieldWindowFuncDef {
         required init(_ sqlType: SqlType) {
             self.sqlType = sqlType
         }
-        
+
         func load(_ data: Any?, appendFunc: ((Any?) -> Void)) {
             if data == nil {
-                return;
+                return
             }
-            
+
             self.data += SumInt.toInt(sqlType, data: data!)
         }
-        
+
+        func reset() {
+            self.data = 0
+        }
+
         func finish(appendFunc: ((Any?) -> Void)) {
             appendFunc(self.data)
         }
     }
-    
+
     class AvgDouble: WindowFunc {
         var data: Double = 0
         var count: UInt64 = 0
@@ -158,21 +169,29 @@ extension FieldWindowFuncDef {
         required init(_ sqlType: SqlType) {
             self.sqlType = sqlType
         }
-        
+
         func load(_ data: Any?, appendFunc: ((Any?) -> Void)) {
             if data == nil {
-                return;
+                return
             }
-            
+
             self.count += 1
             self.data += AvgDouble.toDouble(sqlType, data: data!)
         }
-        
+
+        func reset() {
+            self.data = 0
+        }
+
         func finish(appendFunc: ((Any?) -> Void)) {
-            appendFunc(self.data/Double(self.count))
+            if self.count == 0 {
+                appendFunc(Double(self.count))
+            } else {
+                appendFunc(self.data/Double(self.count))
+            }
         }
     }
-    
+
     class AvgInt: WindowFunc {
         var data: Int64 = 0
         var count: UInt64 = 0
@@ -181,21 +200,29 @@ extension FieldWindowFuncDef {
         required init(_ sqlType: SqlType) {
             self.sqlType = sqlType
         }
-        
+
         func load(_ data: Any?, appendFunc: ((Any?) -> Void)) {
             if data == nil {
-                return;
+                return
             }
-            
+
             self.count += 1
             self.data += AvgInt.toInt(sqlType, data: data!)
         }
-        
+
+        func reset() {
+            self.data = 0
+        }
+
         func finish(appendFunc: ((Any?) -> Void)) {
-            appendFunc(self.data/Int64(self.count))
+            if self.count == 0 {
+                appendFunc(Int64(0))
+            } else {
+                appendFunc(self.data/Int64(self.count))
+            }
         }
     }
-    
+
     class MinMaxFunc: WindowFunc {
         var sqlType: SqlType
         var funcSqlType: SqlType
@@ -203,8 +230,9 @@ extension FieldWindowFuncDef {
             self.sqlType = sqlType
             self.funcSqlType = sqlType
         }
-        
-        static func minFor(_ sqlType: SqlType) -> WindowFunc? {
+
+        static func minFor( // swiftlint:disable:this cyclomatic_complexity
+            _ sqlType: SqlType) -> WindowFunc? {
             switch sqlType {
             case .DOUBLE: return MinDouble<Double>(sqlType)
             case .FLOAT: return MinDouble<Float>(sqlType)
@@ -220,7 +248,8 @@ extension FieldWindowFuncDef {
             }
         }
 
-        static func maxFor(_ sqlType: SqlType) -> WindowFunc? {
+        static func maxFor( // swiftlint:disable:this cyclomatic_complexity
+            _ sqlType: SqlType) -> WindowFunc? {
             switch sqlType {
             case .DOUBLE: return MaxDouble<Double>(sqlType)
             case .FLOAT: return MaxDouble<Float>(sqlType)
@@ -236,54 +265,67 @@ extension FieldWindowFuncDef {
             }
         }
 
+        func reset() {}
         func load(_ data: Any?, appendFunc: ((Any?) -> Void)) {}
         func finish(appendFunc: ((Any?) -> Void)) {}
     }
-    
+
     class MinDouble<T: FloatingPoint>: MinMaxFunc {
         var data: T?
         override func load(_ data: Any?, appendFunc: ((Any?) -> Void)) {
-            if data == nil { return; }
+            if data == nil { return }
             let funcData = data as! T
             if self.data == nil || funcData < self.data! { self.data = funcData }
         }
-        
+
+        override func reset() {
+            self.data = 0
+        }
+
         override func finish(appendFunc: ((Any?) -> Void)) { appendFunc(self.data) }
     }
-    
+
     class MinInt<T: BinaryInteger>: MinMaxFunc {
         var data: T?
         override func load(_ data: Any?, appendFunc: ((Any?) -> Void)) {
-            if data == nil { return; }
+            if data == nil { return }
             let funcData = data as! T
             if self.data == nil || funcData < self.data! { self.data = funcData }
         }
-        
+
+        override func reset() {
+            self.data = 0
+        }
+
         override func finish(appendFunc: ((Any?) -> Void)) { appendFunc(self.data) }
     }
-    
+
     class MaxDouble<T: FloatingPoint>: MinMaxFunc {
         var data: T?
         override func load(_ data: Any?, appendFunc: ((Any?) -> Void)) {
-            if data == nil { return; }
+            if data == nil { return }
             let funcData = data as! T
             if self.data == nil || self.data! < funcData { self.data = funcData }
         }
-        
+
+        override func reset() {
+            self.data = 0
+        }
+
         override func finish(appendFunc: ((Any?) -> Void)) { appendFunc(self.data) }
     }
-    
+
     class MaxInt<T: BinaryInteger>: MinMaxFunc {
         var data: T?
         override func load(_ data: Any?, appendFunc: ((Any?) -> Void)) {
-            if data == nil { return; }
+            if data == nil { return }
             let funcData = data as! T
             if self.data == nil || self.data! < funcData { self.data = funcData }
         }
-        
+
         override func finish(appendFunc: ((Any?) -> Void)) { appendFunc(self.data) }
     }
-    
+
     class StdDevPop: WindowFunc {
         var mean: Double = 0
         var count: UInt64 = 0
@@ -293,21 +335,31 @@ extension FieldWindowFuncDef {
         required init(_ sqlType: SqlType) {
             self.sqlType = sqlType
         }
-        
+
         func load(_ data: Any?, appendFunc: ((Any?) -> Void)) {
             if data == nil {
-                return;
+                return
             }
-            
+
             self.count += 1
             let val = StdDevPop.toDouble(sqlType, data: data!)
             let meanNext = mean + (val - mean) / Double(self.count)
-            variance = variance + (val - mean) * (val - meanNext)
+            variance += (val - mean) * (val - meanNext)
             self.mean = meanNext
         }
-        
+
+        func reset() {
+            self.mean = 0
+            self.count = 0
+            self.variance = 0
+        }
+
         func finish(appendFunc: ((Any?) -> Void)) {
-            appendFunc((self.variance/Double(self.count)).squareRoot())
+            if self.count == 0 {
+                appendFunc(Double(self.count))
+            } else {
+                appendFunc((self.variance/Double(self.count)).squareRoot())
+            }
         }
     }
 }

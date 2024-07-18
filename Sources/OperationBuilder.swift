@@ -155,19 +155,20 @@ public class OperationBuilder {
         if let opNode = node as? Relation.OperatorNode {
             var left = opNode.children[0] as! Relation.RelNodeWithType
             var right = opNode.children[1] as! Relation.RelNodeWithType
-            
+
             if let calcFunc = buildCalcFunc(left) as ((RowAccessor) -> T?)? {
                 left = CalculatedField(calcFunc, sqlType: opNode.type)
             }
+
             if let calcFunc = buildCalcFunc(right) as ((RowAccessor) -> T?)? {
                 right = CalculatedField(calcFunc, sqlType: opNode.type)
             }
-            
+
             let numericFunc =  self.numericComps[node.type]!.build(
                 lNode: left, rNode: right, op: opNode.op, context: context)
             return {accessor in return numericFunc(accessor) as? T}
         }
-        
+
         return nil
     }
 

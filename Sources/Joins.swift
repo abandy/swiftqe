@@ -85,7 +85,7 @@ public class NestedJoin {
             }
 
             var appendRowIndex: UInt = 0
-            let appendFunc = {(row: RowAccessor) in
+            let appendFunc = {(_: RowAccessor) in
                 views.append([lrow.rowIndex, appendRowIndex])}
             if self.rhs.count > 0 {
                 let rrow = self.rhs[0]!

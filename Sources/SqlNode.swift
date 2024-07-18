@@ -15,7 +15,8 @@ public enum Operator {
 }
 
 public enum SqlType: Int32 {
-    case BOOLEAN, INT8, UINT8, INT16, UINT16, UINT32, INT32, INT64, UINT64, FLOAT, DOUBLE, VARCHAR
+    case BOOLEAN, INT8, UINT8, INT16, UINT16, UINT32, INT32
+    case INT64, UINT64, FLOAT, DOUBLE, VARCHAR
 }
 
 public enum JoinType {
@@ -25,6 +26,7 @@ public enum JoinType {
 public enum SqlNodeType: String {
     case SELECT, FROM, FILTER, TABLE, FIELD, PREDICATE, LITERAL
     case OPERATOR, LOGICALOPERATOR, NESTED, COMPUTEDFIELD, JOIN, WINDOWFUNC
+    case GROUPBY
 }
 
 public enum WindowFuncType: String {
@@ -231,11 +233,20 @@ public class SqlPredicateNode: SqlNode {
     }
 }
 
+public class SqlGroupByNode: SqlNode {
+    public var fields: [SqlFieldNode]
+    public init(_ fields: [SqlFieldNode]) {
+        self.fields = fields
+        super.init(type: .GROUPBY)
+    }
+}
+
 public class SqlSelectNode: SqlNode {
     public var tables: [SqlTableNode]
     public var fields: [SqlFieldNode]
     public var joins: [SqlJoinNode]
     public var filter: SqlNode?
+    public var groupBy: SqlGroupByNode?
     public var sqlErrors: [SqlBuilderError]
     public private(set) var errorMsg: String?
 
