@@ -256,7 +256,9 @@ public class GroupByTask {
             switch field.type {
             case .BOOLEAN:
                 let value: Bool? = field.getValue(data: row, context: self.context)
-                if let val = value { data.append(val ? 1 : 0)}
+                appendNil(value, data: &data)
+                let val = value == nil ? false : value!
+                data.append(val ? 1 : 0)
             case .INT8:
                 appendInt(field.getValue(data: row, context: self.context) as Int8?, data: &data, field: field)
             case .INT16:
@@ -290,19 +292,24 @@ public class GroupByTask {
 
     }
 
+    private func appendNil(_ rowData: Any?, data: inout Data) {
+        let nilByte = rowData == nil ? 0 : 1
+        withUnsafeBytes(of: nilByte) { data.append(contentsOf: $0) }
+    }
+
     private func appendInt<T: FixedWidthInteger>(_ rowData: T?,
                                                  data: inout Data,
                                                  field: Relation.FieldNode) {
-        if let val = rowData {
-            withUnsafeBytes(of: val) { data.append(contentsOf: $0) }
-        }
+        appendNil(rowData, data: &data)
+        let val = rowData == nil ? 0 : rowData!
+        withUnsafeBytes(of: val) { data.append(contentsOf: $0) }
     }
 
     private func appendFloat<T: FloatingPoint>(_ rowData: T?,
                                                data: inout Data,
                                                field: Relation.FieldNode) {
-        if let val = rowData {
-            withUnsafeBytes(of: val) { data.append(contentsOf: $0) }
-        }
+        appendNil(rowData, data: &data)
+        let val = rowData == nil ? T(0) : rowData!
+        withUnsafeBytes(of: val) { data.append(contentsOf: $0) }
     }
 }

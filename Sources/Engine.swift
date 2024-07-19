@@ -23,6 +23,18 @@ public class QueryEngine {
         catalog[name] = rb
     }
 
+    public static func run<T: Encodable, U: Decodable>(
+        _ query: String,
+        inputName: String,
+        input: [T],
+        failOnSqlParseError: Bool = false) throws -> [U]? {
+        let engine = QueryEngine()
+        engine.add(try ArrowEncoder.encode(input)!, name: inputName)
+        let rb = try engine.run(query, failOnSqlParseError: true)!
+        let decoder = ArrowDecoder(rb)
+        return try decoder.decode(U.self)
+    }
+
     public func run(_ query: String,  // swiftlint:disable:this cyclomatic_complexity function_body_length
                     failOnSqlParseError: Bool = false) throws -> RecordBatch? {
         if let sqlNode = try MySqlNodeBuilder.build(sql: query) {
@@ -79,7 +91,7 @@ public class QueryEngine {
 
                     let project = ProjectTask(fields,
                                               context: context,
-                                              filterBuilder: filter)
+                                              filterBuilder: groupByViews == nil ? filter: nil)
                     if let gbViews = groupByViews {
                         for view in gbViews {
                             project.execute(projectViews: view)
@@ -101,6 +113,8 @@ public class QueryEngine {
                                               projectViews: projectViews,
                                               filterBuilder: filter)
                     groupByViews = groupBy.execute()
+                case .ORDERBY:
+                    throw EngineError.generic("Currently not implemented")
                 }
             }
         } else {

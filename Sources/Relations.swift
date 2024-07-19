@@ -340,6 +340,14 @@ public class Relation { // swiftlint:disable:this type_body_length
         }
     }
 
+    public class OrderByNode: RelNode {
+        public var fields: [FieldNode]
+        public init(_ fields: [FieldNode]) {
+            self.fields = fields
+            super.init()
+        }
+    }
+
     public class SelectNode: RelNode {
         public var fields = [FieldNode]()
         public var joins = [JoinNode]()
@@ -416,6 +424,7 @@ public class Relation { // swiftlint:disable:this type_body_length
 
                 for sqlField in sqlGroupByNode.fields {
                     if let fieldNode = fieldLookup[sqlField.name] {
+                        fieldLookup.removeValue(forKey: sqlField.name)
                         groupByFields.append(fieldNode)
                     } else if let basicNode = try buildBasicField(sqlField) {
                         groupByFields.append(basicNode)
@@ -424,7 +433,7 @@ public class Relation { // swiftlint:disable:this type_body_length
                     }
                 }
 
-                if (windowFieldCnt + groupByFields.count) != fields.count {
+                if fieldLookup.count != 0 {
                     throw SqlError.invalid("Field(s) found that are not Aggregate or in Group By.")
                 }
 
