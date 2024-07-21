@@ -9,29 +9,34 @@ This repo uses submodules and in order to build the arrow submodule will need to
 - SELECT 
 - FROM
 - WHERE
+- GROUP BY
 
-## Supported Joins:
+### Supported Joins:
 - INNER JOIN
 - RIGHT JOIN
 - LEFT JOIN
 
-## Project Math operators:
+### Project Math operators:
 - Addition
 - Multiplication
 - Substraction
 - Division
 
-## Where predicate operators:
+### Where predicate operators:
 - Equals
 - Not Equals
 - Less Than (Equals)
 - Greater Than (Equals)
 
-## Aggregate Funcs:
+### Aggregate Funcs:
 - SUM
 - AVG
 - MIN
 - MAX
 - STDDEV
 
-## Group By
+## Filter Types:
+- Row: executes predicate per row
+- Col: executes each predicate over columns
+- ColP: executes each predicate over columns in parallel
+- All: predicate is not executed and all rows are returned
