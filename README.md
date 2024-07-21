@@ -35,7 +35,12 @@ This repo uses submodules and in order to build the arrow submodule will need to
 - MAX
 - STDDEV
 
-## Filter Types:
+## Engine Config Options:
+
+### failOnSqlParseError: 
+- default is currently false
+
+### Filter Types:
 - Row: executes predicate per row
 - Col: executes each predicate over columns
 - ColP: executes each predicate over columns in parallel
