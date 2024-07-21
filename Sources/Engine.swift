@@ -13,6 +13,12 @@ public enum EngineError: Error {
     case generic(String)
     case sqlParse(errors: [SqlBuilderError])
 }
+
+public class QueryEngineConfig {
+    var filterType: FilterType = .row
+    var failOnSqlParseError: Bool = false
+}
+
 public class QueryEngine {
     let schema = Schema()
     var catalog = [String: RecordBatch]()
@@ -35,10 +41,18 @@ public class QueryEngine {
         return try decoder.decode(U.self)
     }
 
-    public func run(_ query: String,  // swiftlint:disable:this cyclomatic_complexity function_body_length
+    public func run(_ query: String,
                     failOnSqlParseError: Bool = false) throws -> RecordBatch? {
+        let config = QueryEngineConfig()
+        config.failOnSqlParseError = failOnSqlParseError
+        return try run(query, config: config)
+    }
+
+    public func run(_ query: String,  // swiftlint:disable:this cyclomatic_complexity function_body_length
+                    config: QueryEngineConfig) throws -> RecordBatch? {
+        FilterFactory.setType(config.filterType)
         if let sqlNode = try MySqlNodeBuilder.build(sql: query) {
-            if !sqlNode.sqlErrors.isEmpty && failOnSqlParseError {
+            if !sqlNode.sqlErrors.isEmpty && config.failOnSqlParseError {
                 throw EngineError.sqlParse(errors: sqlNode.sqlErrors)
             }
 
@@ -49,7 +63,7 @@ public class QueryEngine {
 
             var filter: FilterBuilder?
             if let predicateNode = selectNode.predicate {
-                filter = FilterBuilderRow(predicate: predicateNode, context: context)
+                filter = FilterFactory.load(predicateNode, context: context)
             }
 
             let tasks = try Planner.make(relNode: relation!)
@@ -73,7 +87,7 @@ public class QueryEngine {
                     var tableFilter: FilterBuilder?
                     let tablePred = selectNode.tablePredicates[ts.table.name]
                     if tablePred != nil {
-                        tableFilter = FilterBuilderRow(predicate: tablePred!, context: context)
+                        tableFilter = FilterFactory.load(tablePred!, context: context)
                     }
 
                     let scanTask = RBTableScanTask(TableView(rb, tdef: ts.table.tableDef),

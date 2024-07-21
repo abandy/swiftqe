@@ -141,7 +141,8 @@ public class OperationBuilder {
         self.context = context
     }
 
-    public func build<T>(_ node: Relation.RelNodeWithType) -> ((RowAccessor) -> T?)? {
+    public func build<T>( // swiftlint:disable:this cyclomatic_complexity
+        _ node: Relation.RelNodeWithType) -> ((RowAccessor) -> T?)? {
         // if there is only one child then it must
         // be a NestedPredNode
         if let literalNode = node as? Relation.LiteralNode {
@@ -149,7 +150,7 @@ public class OperationBuilder {
         } else if let basicNode = node as? Relation.FieldBasicNode {
             return {(data: RowAccessor) in basicNode.getValue(data: data, context: self.context)}
         } else if let nestedNode = node as? Relation.NestedTypeNode {
-            return self.build(nestedNode.child as! Relation.RelNodeWithType)
+            return self.build(nestedNode.child)
         }
 
         if let opNode = node as? Relation.OperatorNode {
@@ -166,14 +167,41 @@ public class OperationBuilder {
 
             let numericFunc =  self.numericComps[node.type]!.build(
                 lNode: left, rNode: right, op: opNode.op, context: context)
-            return {accessor in return numericFunc(accessor) as? T}
+            let outputType = {() -> SqlType? in
+                if T.self == Bool.self {return .BOOLEAN}
+                if T.self == Int8.self {return .INT8}
+                if T.self == Int16.self {return .INT16}
+                if T.self == Int32.self {return .INT32}
+                if T.self == Int64.self {return .INT64}
+                if T.self == UInt8.self {return .UINT8}
+                if T.self == UInt16.self {return .UINT16}
+                if T.self == UInt32.self {return .UINT32}
+                if T.self == UInt64.self {return .UINT64}
+                if T.self == Float.self {return .FLOAT}
+                if T.self == Double.self {return .DOUBLE}
+                if T.self == String.self {return .VARCHAR}
+                return nil
+            }()
+            if outputType == nil || outputType == node.type {
+                return {accessor in
+                    return numericFunc(accessor) as? T}
+            } else {
+                let origType = node.type
+                node.type = outputType!
+                return {accessor in
+                    if let numData = numericFunc(accessor) {
+                        let data: T? = loadType(outputType!, to: origType, data: numData)
+                        return data
+                    }
+                    return nil
+                }
+            }
         }
-
         return nil
     }
 
-    func buildCalcFunc<T>(_ node: Relation.RelNodeWithType) -> ((RowAccessor) -> T?)? {
-        var output: ((RowAccessor) -> T?)?
+    func buildCalcFunc<U>(_ node: Relation.RelNodeWithType) -> ((RowAccessor) -> U?)? {
+        var output: ((RowAccessor) -> U?)?
         if let complex = node as? Relation.FieldComplexNode {
             output = build(complex)
         } else if let nested = node as? Relation.NestedTypeNode {

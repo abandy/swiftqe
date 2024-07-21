@@ -628,7 +628,42 @@ public class MySqlNodeBuilder {
             return SqlGroupByNode(fields)
         }
     }
-    
+    class OrderByItemVisitor: BaseSelectTreeVisitor {
+        override func visitChildren(_ node: RuleNode) -> SqlNode? {
+            for index in 0..<node.getChildCount() {
+                let childNode = node[index]
+                if childNode is MySqlParser.PredicateExpressionContext {
+                    return childNode.accept(PredicateExpTreeVisitor(selectNode, context: self.context))
+                } else if !(childNode is TerminalNode) {
+                    selectNode.unknownNodeError("OrderByItemVisitor", node: childNode)
+                }
+            }
+            
+            return nil
+        }
+    }
+
+    class OrderByVisitor: BaseSelectTreeVisitor {
+        override func visitChildren(_ node: RuleNode) -> SqlNode? {
+            var fields = [SqlFieldOrderBydNode]()
+            for index in 0..<node.getChildCount() {
+                let childNode = node[index]
+                if let obNode = childNode as? MySqlParser.OrderByExpressionContext {
+                    if let fieldNode = childNode.accept(OrderByItemVisitor(selectNode, context: self.context))
+                        as? SqlFieldNode {
+                        fields.append(SqlFieldOrderBydNode(fieldNode, isAsc: obNode.ASC() != nil))
+                    } else {
+                        selectNode.unknownNodeError("Node type is incorrect for ORDER BY: ", node: childNode)
+                    }
+                } else if !(childNode is TerminalNode) {
+                    selectNode.unknownNodeError("OrderByVisitor", node: childNode)
+                }
+            }
+            
+            return SqlOrderByNode(fields)
+        }
+    }
+
     class FromTreeVisitor: BaseSelectTreeVisitor {
         override func visitChildren(_ node: RuleNode) -> SqlNode? {
             for index in 0..<node.getChildCount() {
@@ -679,6 +714,11 @@ public class MySqlNodeBuilder {
                         let node = childNode.accept(GroupByVisitor(selectNode, context: self.context))
                         if let groupByNode = node as? SqlGroupByNode {
                             selectNode.groupBy = groupByNode
+                        }
+                    } else if childNode is MySqlParser.OrderByClauseContext {
+                        let node = childNode.accept(OrderByVisitor(selectNode, context: self.context))
+                        if let orderByNode = node as? SqlOrderByNode {
+                            selectNode.orderBy = orderByNode
                         }
                     } else if !(childNode is TerminalNode){
                         selectNode.unknownNodeError("SelectTreeVisitor", node: childNode)

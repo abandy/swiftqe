@@ -37,7 +37,7 @@ public class TableView: TableViewProtocol, Sequence {
     init(_ rb: RecordBatch, tdef: TableDef) {
         self.rb = rb
         self.tdef = tdef
-        self.includeAll = false
+        self.includeAll = true
         self.fieldToColumn = [Int: Arrow.ArrowArrayHolder]()
         for index in 0..<tdef.fields.count {
             self.fieldToColumn[tdef.fields[index].id] = rb.column(index)
@@ -48,6 +48,7 @@ public class TableView: TableViewProtocol, Sequence {
 
     func append(_ rowIndex: UInt) {
         indicies.append(rowIndex)
+        self.includeAll = false
     }
 
     public func update(_ rowIndexes: [UInt]) {

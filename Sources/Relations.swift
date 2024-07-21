@@ -12,6 +12,44 @@ public enum SqlError: Error {
     case invalid(String)
 }
 
+func loadType<T>( // swiftlint:disable:this cyclomatic_complexity
+    _ from: SqlType,
+    to: SqlType,
+    data: Any) -> T? {
+    switch from {
+    case .INT8:
+        return Relation.CastInteger<Int8>().funcs[to]!(data) as? T
+    case .INT16:
+        return Relation.CastInteger<Int16>().funcs[to]!(data) as? T
+    case .INT32:
+        return Relation.CastInteger<Int32>().funcs[to]!(data) as? T
+    case .INT64:
+        return Relation.CastInteger<Int64>().funcs[to]!(data) as? T
+    case .UINT8:
+        return Relation.CastInteger<UInt8>().funcs[to]!(data) as? T
+    case .UINT16:
+        return Relation.CastInteger<UInt16>().funcs[to]!(data) as? T
+    case .UINT32:
+        return Relation.CastInteger<UInt32>().funcs[to]!(data) as? T
+    case .UINT64:
+        return Relation.CastInteger<UInt64>().funcs[to]!(data) as? T
+    case .DOUBLE:
+        if to == .FLOAT {
+            return Double(data as! Float) as? T
+        }
+
+        return Relation.CastFloat<Double>().funcs[to]!(data) as? T
+    case .FLOAT:
+        if to == .DOUBLE {
+            return Float(data as! Double) as? T
+        }
+
+        return Relation.CastFloat<Float>().funcs[to]!(data) as? T
+    default:
+        return nil
+    }
+}
+
 public class FieldOverride {
     var getValue: ((RowAccessor) -> Any?)?
 }
@@ -42,7 +80,7 @@ public class Relation { // swiftlint:disable:this type_body_length
     }
 
     public class RelNodeWithType: RelNode {
-        public private(set) var type: SqlType
+        public var type: SqlType
         public init(_ type: SqlType) {
             self.type = type
         }
@@ -118,7 +156,7 @@ public class Relation { // swiftlint:disable:this type_body_length
         }
     }
 
-    private class CastInteger<T: BinaryInteger> {
+    class CastInteger<T: BinaryInteger> {
         let funcs: [SqlType: ((Any) -> T)] = [
             .INT8: {data in T(data as! Int8)},
             .INT16: {data in T(data as! Int16)},
@@ -133,7 +171,7 @@ public class Relation { // swiftlint:disable:this type_body_length
         ]
     }
 
-    private class CastFloat<T: FloatingPoint> {
+    class CastFloat<T: FloatingPoint> {
         let funcs: [SqlType: ((Any) -> T)] = [
             .INT8: {data in T(data as! Int8)},
             .INT16: {data in T(data as! Int16)},
@@ -147,51 +185,24 @@ public class Relation { // swiftlint:disable:this type_body_length
     }
 
     public class CastNumberNode: RelNodeWithType {
-        let node: RelNodeWithType
+        var node: RelNodeWithType
         public init(_ node: RelNodeWithType, sqlType: SqlType) {
             self.node = node
             super.init(sqlType)
         }
 
-        override public func getValue<T>( // swiftlint:disable:this cyclomatic_complexity
-            data: RowAccessor, context: QueryContext) -> T? {
+        public func setNode(_ node: RelNodeWithType) {
+            self.node = node
+        }
+
+        override public func getValue<T>(
+            data: RowAccessor, context: QueryContext
+        ) -> T? {
             let output: Any? = node.getValue(data: data, context: context)
             if output == nil || self.type == node.type {
                 return output as? T
             }
-
-            switch self.type {
-            case .INT8:
-                return CastInteger<Int8>().funcs[node.type]!(output!) as? T
-            case .INT16:
-                return CastInteger<Int16>().funcs[node.type]!(output!) as? T
-            case .INT32:
-                return CastInteger<Int32>().funcs[node.type]!(output!) as? T
-            case .INT64:
-                return CastInteger<Int64>().funcs[node.type]!(output!) as? T
-            case .UINT8:
-                return CastInteger<UInt8>().funcs[node.type]!(output!) as? T
-            case .UINT16:
-                return CastInteger<UInt16>().funcs[node.type]!(output!) as? T
-            case .UINT32:
-                return CastInteger<UInt32>().funcs[node.type]!(output!) as? T
-            case .UINT64:
-                return CastInteger<UInt64>().funcs[node.type]!(output!) as? T
-            case .DOUBLE:
-                if node.type == .FLOAT {
-                    return Double(output as! Float) as? T
-                }
-
-                return CastFloat<Double>().funcs[node.type]!(output!) as? T
-            case .FLOAT:
-                if node.type == .DOUBLE {
-                    return Float(output as! Double) as? T
-                }
-
-                return CastFloat<Float>().funcs[node.type]!(output!) as? T
-            default:
-                return nil
-            }
+            return loadType(self.type, to: node.type, data: output!)
         }
     }
 
@@ -276,8 +287,8 @@ public class Relation { // swiftlint:disable:this type_body_length
     }
 
     public class NestedTypeNode: RelNodeWithType {
-        public var child: RelNode
-        public init(_ sqlType: SqlType, node: RelNode) {
+        public var child: RelNodeWithType
+        public init(_ sqlType: SqlType, node: RelNodeWithType) {
             self.child = node
             super.init(sqlType)
         }
@@ -525,11 +536,12 @@ public class Relation { // swiftlint:disable:this type_body_length
             case .NESTED:
                 let nested = (sql as! SqlNestedNode)
                 if let nestedChild = try convert(nested.node) {
-                    if let predChild = nestedChild as? PredicateNode {
+                    let nestedTypeChild = nestedChild as! RelNodeWithType
+                    if let predChild = nestedTypeChild as? PredicateNode {
                         return NestedPredNode(node: predChild)
                     }
 
-                    return NestedTypeNode((nestedChild as! RelNodeWithType).type, node: nestedChild)
+                    return NestedTypeNode((nestedChild as! RelNodeWithType).type, node: nestedTypeChild)
                 }
 
                 throw SqlError.invalid("Error wrapping nested child: \(nested.toString())")

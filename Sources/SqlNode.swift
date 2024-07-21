@@ -26,7 +26,7 @@ public enum JoinType {
 public enum SqlNodeType: String {
     case SELECT, FROM, FILTER, TABLE, FIELD, PREDICATE, LITERAL
     case OPERATOR, LOGICALOPERATOR, NESTED, COMPUTEDFIELD, JOIN, WINDOWFUNC
-    case GROUPBY
+    case GROUPBY, ORDERBY
 }
 
 public enum WindowFuncType: String {
@@ -175,6 +175,20 @@ public class SqlFieldComplexNode: SqlFieldNode {
     }
 }
 
+public class SqlFieldOrderBydNode: SqlNode {
+    public let isAsc: Bool
+    public let field: SqlFieldNode
+    public init(_ field: SqlFieldNode, isAsc: Bool) {
+        self.field = field
+        self.isAsc = isAsc
+        super.init(type: field.type)
+    }
+
+    override public func toString() -> String {
+        return "SqlFieldOrderBydNode: \(self.field.name)"
+    }
+}
+
 public class SqlWindowFuncNode: SqlFieldNode {
     public var funcType: WindowFuncType
     public var body: SqlNode
@@ -241,12 +255,21 @@ public class SqlGroupByNode: SqlNode {
     }
 }
 
+public class SqlOrderByNode: SqlNode {
+    public var fields: [SqlFieldOrderBydNode]
+    public init(_ fields: [SqlFieldOrderBydNode]) {
+        self.fields = fields
+        super.init(type: .ORDERBY)
+    }
+}
+
 public class SqlSelectNode: SqlNode {
     public var tables: [SqlTableNode]
     public var fields: [SqlFieldNode]
     public var joins: [SqlJoinNode]
     public var filter: SqlNode?
     public var groupBy: SqlGroupByNode?
+    public var orderBy: SqlOrderByNode?
     public var sqlErrors: [SqlBuilderError]
     public private(set) var errorMsg: String?
 

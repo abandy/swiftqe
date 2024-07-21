@@ -67,7 +67,7 @@ public class NestedJoin {
     }
 
     public func scan(views: JoinView) {
-        let validateFunc = filter.build(nil)!
+        _ = filter.build(nil, rowCount: self.rhs.count)
         let parameters = filter.context.parameter
         var overrides = [Int: FieldDef]()
 
@@ -90,7 +90,7 @@ public class NestedJoin {
             if self.rhs.count > 0 {
                 let rrow = self.rhs[0]!
                 appendRowIndex = rrow.rowIndex
-                filter.process(rrow, appendFunc: appendFunc, validateFunc: validateFunc)
+                filter.process(rrow, appendFunc: appendFunc)
             }
         }
     }

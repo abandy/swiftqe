@@ -7,75 +7,6 @@ import Foundation
 import CryptoKit
 import Arrow
 
-public protocol FilterBuilder {
-    var context: QueryContext { get }
-    var predicateNode: Relation.PredicateNode { get }
-    func build(_ tdef: TableDef?) -> ((RowAccessor, (RowAccessor) -> Void) -> Bool)?
-    func process(_ myRows: RowAccessor,
-                 appendFunc: @escaping (RowAccessor) -> Void,
-                 validateFunc: ((RowAccessor, (RowAccessor) -> Void) -> Bool))
-}
-
-public class FilterBuilderAllRows: FilterBuilder {
-    public var predicateNode: Relation.PredicateNode
-    public var context: QueryContext
-    public init(_ context: QueryContext) {
-        self.context = context
-        self.predicateNode = Relation.PredicateNode(.UNKNOWN, children: [])
-    }
-
-    public func build(_ tdef: TableDef?) -> ((RowAccessor, (RowAccessor) -> Void) -> Bool)? {
-        return {(row, appendFunc) in
-            appendFunc(row)
-            return true
-        }
-    }
-
-    public func process(_ myRows: RowAccessor,
-                        appendFunc: @escaping (RowAccessor) -> Void,
-                        validateFunc: ((RowAccessor, (RowAccessor) -> Void) -> Bool)) {
-        for index in 0..<myRows.count {
-            _ = myRows.to(rowIndex: index)
-            _ = validateFunc(myRows, appendFunc)
-        }
-    }
-}
-
-public class FilterBuilderRow: FilterBuilder {
-    public let wrapper: PredicateBuilder
-    public var predicateNode: Relation.PredicateNode { wrapper.predicateNode }
-    public var context: QueryContext
-    public init(predicate: Relation.PredicateNode, context: QueryContext) {
-        self.context = context
-        self.wrapper = PredicateBuilder(predicate, context: context)
-    }
-
-    public func build(_ tdef: TableDef?) -> ((RowAccessor, (RowAccessor) -> Void) -> Bool)? {
-        let predFunc = self.wrapper.build(tdef)
-        if predFunc != nil {
-            return {(row, appendFunc) in
-                if predFunc!(row) {
-                    appendFunc(row)
-                    return true
-                }
-
-                return false
-            }
-        }
-
-        return nil
-    }
-
-    public func process(_ myRows: RowAccessor,
-                        appendFunc: @escaping (RowAccessor) -> Void,
-                        validateFunc: ((RowAccessor, (RowAccessor) -> Void) -> Bool)) {
-        for index in 0..<myRows.count {
-            _ = myRows.to(rowIndex: index)
-            _ = validateFunc(myRows, appendFunc)
-        }
-    }
-}
-
 public class RBTableScanTask: Sequence {
     public let tview: TableView
     let filterBuilder: FilterBuilder?
@@ -105,11 +36,9 @@ public class RBTableScanTask: Sequence {
 
     public func execute() {
         if let filter = self.filterBuilder {
-            if let validateFunc = filter.build(self.tview.tdef) {
+            if filter.build(self.tview.tdef, rowCount: self.tview.count) {
                 let appendFunc = {(row: RowAccessor) in self.tview.append(row.rowIndex)}
-                for row in self {
-                    _ = validateFunc(row, appendFunc)
-                }
+                filter.process(self.tview.rowAccessor!, appendFunc: appendFunc)
             } else {
                 self.tview.includeAll = true
             }
@@ -137,7 +66,7 @@ public class RBInnerJoinTask {
 
     public func execute() {
         let joinDef = self.ij.join
-        let filter = FilterBuilderRow(predicate: joinDef.predicate as! Relation.PredicateNode, context: context)
+        let filter = FilterFactory.load(joinDef.predicate as? Relation.PredicateNode, context: context)
         self.joinView = JoinHelper.innerJoin(filter, lhs: self.lhs, rhs: self.rhs, joinType: joinDef.type)
     }
 }
@@ -162,10 +91,10 @@ public class ProjectTask {
     public func execute(projectViews: [TableViewProtocol]) {
         let viewReader = ViewsReader(projectViews)
         if let filter = filterBuilder {
-            if let validateFunc = filter.build(nil) {
+            if filter.build(nil, rowCount: viewReader.count) {
                 let appendFunc = {(row: RowAccessor) in self.load(row)}
                 let filterRows = viewReader.rowAccessor.clone()
-                filter.process(filterRows, appendFunc: appendFunc, validateFunc: validateFunc)
+                filter.process(filterRows, appendFunc: appendFunc)
             } else {
                 for row in viewReader {
                     self.load(row)
@@ -181,11 +110,11 @@ public class ProjectTask {
     public func executeColCentric(projectViews: [TableViewProtocol]) {
         let viewReader = ViewsReader(projectViews)
         if let filter = filterBuilder {
-            if let validateFunc = filter.build(nil) {
+            if filter.build(nil, rowCount: viewReader.count) {
                 var indicies = [UInt]()
                 let appendFunc = {(row: RowAccessor) in indicies.append(row.rowIndex)}
                 let filterRows = viewReader.rowAccessor.clone()
-                filter.process(filterRows, appendFunc: appendFunc, validateFunc: validateFunc)
+                filter.process(filterRows, appendFunc: appendFunc)
 
                 self.projectBuilder.append(viewReader.rowAccessor, indicies: indicies)
             } else {
@@ -218,13 +147,15 @@ public class GroupByTask {
         self.scan = scan
         self.context = context
         self.projectViews = projectViews
-        self.filterBuilder = filterBuilder == nil ? FilterBuilderAllRows(context) : filterBuilder!
+        self.filterBuilder = filterBuilder == nil
+            ? FilterFactory.load(nil, context: context, FilterType.all)
+            : filterBuilder!
     }
 
     public func execute() -> [[TableViewProtocol]] {
         var views = [Int: [UInt]]()
         let viewReader = ViewsReader(projectViews)
-        if let validateFunc = self.filterBuilder.build(nil) {
+        if self.filterBuilder.build(nil, rowCount: viewReader.count) {
             let appendFunc = {(row: RowAccessor) in
                 let hashValue = self.simpleHash(row)
                 if views[hashValue] == nil {
@@ -235,7 +166,7 @@ public class GroupByTask {
             }
 
             let filterRow = viewReader.rowAccessor.clone()
-            self.filterBuilder.process(filterRow, appendFunc: appendFunc, validateFunc: validateFunc)
+            self.filterBuilder.process(filterRow, appendFunc: appendFunc)
         }
 
         var retTables = [[TableViewProtocol]]()
@@ -311,5 +242,18 @@ public class GroupByTask {
         appendNil(rowData, data: &data)
         let val = rowData == nil ? T(0) : rowData!
         withUnsafeBytes(of: val) { data.append(contentsOf: $0) }
+    }
+}
+
+public class OrderByTask {
+    var scan: OrderBy
+    var context: QueryContext
+    var projectViews: [TableViewProtocol]
+    public init(_ scan: OrderBy,
+                context: QueryContext,
+                projectViews: [TableViewProtocol]) {
+        self.scan = scan
+        self.context = context
+        self.projectViews = projectViews
     }
 }
