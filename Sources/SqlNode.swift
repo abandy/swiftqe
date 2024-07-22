@@ -26,11 +26,15 @@ public enum JoinType {
 public enum SqlNodeType: String {
     case SELECT, FROM, FILTER, TABLE, FIELD, PREDICATE, LITERAL
     case OPERATOR, LOGICALOPERATOR, NESTED, COMPUTEDFIELD, JOIN, WINDOWFUNC
-    case GROUPBY, ORDERBY
+    case GROUPBY, ORDERBY, SCALARFUNC, FUNCARGS
 }
 
 public enum WindowFuncType: String {
     case SUM, AVG, MIN, MAX, STDDEV
+}
+
+public enum ScalarFuncType: String {
+    case ABS, LENGTH, LOWER, POWER
 }
 
 public class SqlNode {
@@ -186,6 +190,32 @@ public class SqlFieldOrderBydNode: SqlNode {
 
     override public func toString() -> String {
         return "SqlFieldOrderBydNode: \(self.field.name)"
+    }
+}
+
+public class SqlFuncArgsFuncNode: SqlNode {
+    public var args: [SqlNode]
+    public init(args: [SqlNode]) {
+        self.args = args
+        super.init(type: .FUNCARGS)
+    }
+
+    override public func toString() -> String {
+        return "SqlFuncArgsFuncNode: \(args.count)"
+    }
+}
+
+public class SqlScalarFuncNode: SqlFieldNode {
+    public var funcType: ScalarFuncType
+    public var args: SqlFuncArgsFuncNode
+    public init(_ name: String, fType: ScalarFuncType, args: SqlFuncArgsFuncNode) {
+        self.funcType = fType
+        self.args = args
+        super.init(name, type: .SCALARFUNC)
+    }
+
+    override public func toString() -> String {
+        return "SqlScalarFuncNode: \(funcType), \(args.toString())"
     }
 }
 

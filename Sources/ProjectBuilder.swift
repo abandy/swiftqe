@@ -26,42 +26,43 @@ public class ProjectBuilder {
 
             switch field.type {
             case .BOOLEAN:
-                try makeBuilder(Bool.self)
+                try makeBuilder(Bool.self, field: field)
             case .INT8:
-                try makeBuilder(Int8.self)
+                try makeBuilder(Int8.self, field: field)
             case .INT16:
-                try makeBuilder(Int16.self)
+                try makeBuilder(Int16.self, field: field)
             case .INT32:
-                try makeBuilder(Int32.self)
+                try makeBuilder(Int32.self, field: field)
             case .INT64:
-                try makeBuilder(Int64.self)
+                try makeBuilder(Int64.self, field: field)
             case .UINT8:
-                try makeBuilder(UInt8.self)
+                try makeBuilder(UInt8.self, field: field)
             case .UINT16:
-                try makeBuilder(UInt16.self)
+                try makeBuilder(UInt16.self, field: field)
             case .UINT32:
-                try makeBuilder(UInt32.self)
+                try makeBuilder(UInt32.self, field: field)
             case .UINT64:
-                try makeBuilder(UInt64.self)
+                try makeBuilder(UInt64.self, field: field)
             case .FLOAT:
-                try makeBuilder(Float.self)
+                try makeBuilder(Float.self, field: field)
             case .DOUBLE:
-                try makeBuilder(Double.self)
+                try makeBuilder(Double.self, field: field)
             case .VARCHAR:
-                try makeBuilder(String.self)
+                try makeBuilder(String.self, field: field)
             }
-
-            buildExpression(self.field)
         }
 
-        func makeBuilder<T>(_ type: T.Type) throws {
+        func makeBuilder<T>(_ type: T.Type, field: FieldDef) throws {
             let arrayBuilder = try ArrowArrayBuilders.loadBuilder(type)
-            appendFunc = {data in arrayBuilder.appendAny(data as? T)}
+            appendFunc = {data in arrayBuilder.appendAny(data)}
             finish = { try arrayBuilder.toHolder()}
+            buildExpression(type, field: self.field)
         }
 
-        public func buildExpression(_ field: FieldDef) {
-            if let complexField = field as? FieldComplexDef {
+        public func buildExpression<T>(_ type: T.Type, field: FieldDef) {
+            if let scalarField = field as? FieldScalarFuncDef {
+                PredicateBuilderHelper<T>.buildScalarFunc(scalarField, context: self.context)
+            } else if let complexField = field as? FieldComplexDef {
                 complexField.calcFunc = OperationBuilder(context).build(complexField.expression)
             }
         }

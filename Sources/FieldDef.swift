@@ -103,6 +103,39 @@ public class FieldGroupByDef: FieldDef {
     public func finish(appendFunc: ((Any?) -> Void)) {}
 }
 
+public class FieldScalarFuncDef: FieldDef {
+    public var id = uniqueId.loadThenWrappingIncrement(ordering: .relaxed)
+    public private(set) var name: String
+    public private(set) var type: SqlType
+    public var scalarFunc: ScalarFunc
+    public var calcFuncs = [((RowAccessor) -> Any?)]()
+    public var args: [Relation.RelNodeWithType]
+    public private(set) var tableDef: TableDef?
+    public init(_ name: String, scalarFunc: ScalarFunc, args: [Relation.RelNodeWithType]) {
+        self.name = name
+        self.scalarFunc = scalarFunc
+        self.type = scalarFunc.funcSqlType
+        self.args = args
+    }
+
+    public func setTable(_ tableDef: TableDef) {
+        self.tableDef = tableDef
+    }
+
+    public func reset() {}
+
+    public func load(_ data: RowAccessor, appendFunc: ((Any?) -> Void)) {
+        var funcData = [Any?]()
+        for calcFunc in self.calcFuncs {
+            funcData.append(calcFunc(data))
+        }
+
+        appendFunc(self.scalarFunc.getValue(funcData))
+    }
+
+    public func finish(appendFunc: ((Any?) -> Void)) {}
+}
+
 public class FieldWindowFuncDef: FieldComplexDef {
     public var winFunc: WindowFunc
     public init(_ name: String, winFunc: WindowFunc, expression: Relation.RelNodeWithType) {

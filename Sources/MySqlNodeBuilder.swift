@@ -282,7 +282,54 @@ public class MySqlNodeBuilder {
             return nil
         }
     }
-    
+
+    class FunctionArgsVisitor: BaseSelectTreeVisitor {
+        override func visitChildren(_ node: RuleNode) -> SqlNode? {
+            var args = [SqlNode]()
+            for index in 0..<node.getChildCount() {
+                let childNode = node[index]
+                if childNode is MySqlParser.ConstantContext {
+                    args.append(SqlLiteralNode(childNode.getText()))
+                } else if childNode is MySqlParser.FullColumnNameContext {
+                    args.append(
+                        childNode.accept(FullColumnNameVisitor(self.selectNode, context: self.context))!)
+                } else if childNode is MySqlParser.ScalarFunctionCallContext {
+                    args.append(
+                        childNode.accept(ScalarFunctionCallVisitor(self.selectNode, context: self.context))!)
+                } else if childNode is MySqlParser.PredicateExpressionContext {
+                    let predNode = childNode.accept(PredicateExpTreeVisitor(selectNode, context: self.context))
+                    if let nestedNode = predNode as? SqlNestedNode {
+                        if let fieldNode = nestedNode.node as? SqlFieldBasicNode  {
+                            return fieldNode
+                        }
+                    }
+                    
+                    args.append(SqlFieldComplexNode(
+                        MySqlNodeBuilder.fieldNameGenerator.next(), child: predNode!))
+                }
+            }
+            return SqlFuncArgsFuncNode(args: args)
+        }
+    }
+
+    class ScalarFunctionCallVisitor: BaseSelectTreeVisitor {
+        override func visitChildren(_ node: RuleNode) -> SqlNode? {
+            var funcName: String?
+            for index in 0..<node.getChildCount() {
+                let childNode = node[index]
+                if let scalarName = childNode as? MySqlParser.ScalarFunctionNameContext {
+                    funcName = scalarName.functionNameBase()!.getText()
+                } else if childNode is MySqlParser.FunctionArgsContext {
+                    if let funcArgs = childNode.accept(FunctionArgsVisitor(self.selectNode, context: self.context))
+                        as? SqlFuncArgsFuncNode {
+                        return SqlScalarFuncNode("", fType: ScalarFuncType(rawValue: funcName!)!, args: funcArgs)
+                    }
+                }
+            }
+            return nil
+        }
+    }
+
     class FieldTreeVisitor: BaseSelectTreeVisitor {
         override func visitChildren(_ node: RuleNode) -> SqlNode? {
             for index in 0..<node.getChildCount() {
@@ -301,6 +348,8 @@ public class MySqlNodeBuilder {
                     return childNode.accept(FullColumnNameVisitor(self.selectNode, context: self.context))
                 } else if childNode is MySqlParser.AggregateFunctionCallContext {
                     return childNode.accept(AggregateFunctionCallVisitor(self.selectNode, context: self.context))
+                } else if childNode is MySqlParser.ScalarFunctionCallContext {
+                    return childNode.accept(ScalarFunctionCallVisitor(self.selectNode, context: self.context))
                 } else {
                     self.selectNode.unknownNodeError("FieldTreeVisitor", node: childNode)
                 }
@@ -366,6 +415,21 @@ public class MySqlNodeBuilder {
             return nil
         }
     }
+
+    class FunctionCallExpressionAtomVisitor: BaseSelectTreeVisitor {
+        override func visitChildren(_ node: RuleNode) -> SqlNode? {
+            for index in 0..<node.getChildCount() {
+                let childNode = node[index]
+                if childNode is MySqlParser.ScalarFunctionCallContext {
+                    return childNode.accept(ScalarFunctionCallVisitor(self.selectNode, context: self.context))
+                } else {
+                    self.selectNode.unknownNodeError("FunctionCallExpressionAtomVisitor", node: childNode)
+                }
+            }
+            
+            return nil
+        }
+    }
     
     class ExpressionAtomPredicateTreeVisitor: BaseSelectTreeVisitor {
         override func visitChildren(_ node: RuleNode) -> SqlNode? {
@@ -379,6 +443,8 @@ public class MySqlNodeBuilder {
                     return childNode.accept(NestedExpressionAtomVisitor(selectNode, context: self.context))
                 } else if childNode is MySqlParser.MathExpressionAtomContext {
                     return childNode.accept(MathExpressionAtomVisitor(selectNode, context: self.context))
+                } else if childNode is MySqlParser.FunctionCallExpressionAtomContext {
+                    return childNode.accept(FunctionCallExpressionAtomVisitor(selectNode, context: self.context))
                 } else {
                     self.selectNode.unknownNodeError("ExpressionAtomPredicateTreeVisitor", node: childNode)
                 }

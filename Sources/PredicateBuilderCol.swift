@@ -25,17 +25,10 @@ public class PredicateBuilderCol { // swiftlint:disable:this type_body_length
             lRelNode: Relation.RelNodeWithType,
             rRelNode: Relation.RelNodeWithType,
             predicate: Predicate,
-            context: QueryContext) -> ((RowAccessor, _: inout [Bool]) -> Void) {
-            var lNode = lRelNode
-            var rNode = rRelNode
-
-            if let calcNode = PredicateBuilderHelper<T>.checkBuildCaclField(lNode, context: context) {
-                lNode = calcNode
-            }
-            if let calcNode = PredicateBuilderHelper<T>.checkBuildCaclField(rNode, context: context) {
-                rNode = calcNode
-            }
-
+            context: QueryContext
+        ) -> ((RowAccessor, _: inout [Bool]) -> Void) {
+            let lNode = PredicateBuilderHelper<T>.checkNode(lRelNode, context: context)
+            let rNode = PredicateBuilderHelper<T>.checkNode(rRelNode, context: context)
             switch predicate {
             case .EQ:
                 if lNode is Relation.LiteralNode && rNode is Relation.LiteralNode {
@@ -85,7 +78,8 @@ public class PredicateBuilderCol { // swiftlint:disable:this type_body_length
         public func getValue(
             node: Relation.RelNodeWithType,
             data: RowAccessor,
-            context: QueryContext) -> T? {
+            context: QueryContext
+        ) -> T? {
             return node.getValue(data: data, context: context)
         }
     }
@@ -99,17 +93,10 @@ public class PredicateBuilderCol { // swiftlint:disable:this type_body_length
             lRelNode: Relation.RelNodeWithType,
             rRelNode: Relation.RelNodeWithType,
             predicate: Predicate,
-            context: QueryContext) -> ((RowAccessor, _: inout [Bool]) -> Void) {
-            var lNode = lRelNode
-            var rNode = rRelNode
-
-            if let calcNode = PredicateBuilderHelper<T>.checkBuildCaclField(lNode, context: context) {
-                lNode = calcNode
-            }
-            if let calcNode = PredicateBuilderHelper<T>.checkBuildCaclField(rNode, context: context) {
-                rNode = calcNode
-            }
-
+            context: QueryContext
+        ) -> ((RowAccessor, _: inout [Bool]) -> Void) {
+            let lNode = PredicateBuilderHelper<T>.checkNode(lRelNode, context: context)
+            let rNode = PredicateBuilderHelper<T>.checkNode(rRelNode, context: context)
             switch predicate {
             case .LT:
                 if lNode is Relation.LiteralNode && rNode is Relation.LiteralNode {

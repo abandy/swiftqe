@@ -14,6 +14,16 @@ public protocol PredicateComparor {
 }
 
 public class PredicateBuilderHelper<T> {
+    public static func checkNode(_ node: Relation.RelNodeWithType,
+                                 context: QueryContext) -> Relation.RelNodeWithType {
+        if let calcNode = PredicateBuilderHelper<T>.checkBuildCaclField(node, context: context) {
+            return calcNode
+        }
+
+        PredicateBuilderHelper<T>.buildScalarFunc(node, context: context)
+        return node
+    }
+
     public static func checkBuildCaclField(
         _ node: Relation.RelNodeWithType,
         context: QueryContext
@@ -36,6 +46,31 @@ public class PredicateBuilderHelper<T> {
         }
 
         return nil
+    }
+
+    public static func buildScalarFunc(_ node: Relation.RelNodeWithType,
+                                       context: QueryContext) {
+        if let scalerNode = node as? Relation.FieldScalarFuncNode {
+            buildScalarFunc(scalerNode.definition as! FieldScalarFuncDef, context: context)
+        }
+    }
+
+    public static func buildScalarFunc(_ scalarDef: FieldScalarFuncDef,
+                                       context: QueryContext) {
+        if scalarDef.calcFuncs.count > 0 {
+            return
+        }
+        for childNode in scalarDef.args {
+            if let calcNode = PredicateBuilderHelper<T>.checkBuildCaclField(childNode, context: context) {
+                scalarDef.calcFuncs.append({data in
+                    return calcNode.getValue(data: data, context: context) as Any?
+                })
+            } else {
+                scalarDef.calcFuncs.append({data in
+                    return childNode.getValue(data: data, context: context) as Any?
+                })
+            }
+        }
     }
 }
 
@@ -67,17 +102,10 @@ public class PredicateBuilderBasic {
             lRelNode: Relation.RelNodeWithType,
             rRelNode: Relation.RelNodeWithType,
             predicate: Predicate,
-            context: QueryContext) -> ((RowAccessor) -> Bool) {
-            var lNode = lRelNode
-            var rNode = rRelNode
-
-            if let calcNode = PredicateBuilderHelper<T>.checkBuildCaclField(lNode, context: context) {
-                lNode = calcNode
-            }
-            if let calcNode = PredicateBuilderHelper<T>.checkBuildCaclField(rNode, context: context) {
-                rNode = calcNode
-            }
-
+            context: QueryContext
+        ) -> ((RowAccessor) -> Bool) {
+            let lNode = PredicateBuilderHelper<T>.checkNode(lRelNode, context: context)
+            let rNode = PredicateBuilderHelper<T>.checkNode(rRelNode, context: context)
             switch predicate {
             case .EQ:
                 if lNode is Relation.LiteralNode && rNode is Relation.LiteralNode {
@@ -116,8 +144,8 @@ public class PredicateBuilderBasic {
             node: Relation.RelNodeWithType,
             data: RowAccessor,
             context: QueryContext) -> T? {
-            return node.getValue(data: data, context: context)
-        }
+                return node.getValue(data: data, context: context)
+            }
     }
 
     public class ComparionOps<T: Comparable>: EqualOps<T> {
@@ -129,17 +157,10 @@ public class PredicateBuilderBasic {
             lRelNode: Relation.RelNodeWithType,
             rRelNode: Relation.RelNodeWithType,
             predicate: Predicate,
-            context: QueryContext) -> ((RowAccessor) -> Bool) {
-            var lNode = lRelNode
-            var rNode = rRelNode
-
-            if let calcNode = PredicateBuilderHelper<T>.checkBuildCaclField(lNode, context: context) {
-                lNode = calcNode
-            }
-            if let calcNode = PredicateBuilderHelper<T>.checkBuildCaclField(rNode, context: context) {
-                rNode = calcNode
-            }
-
+            context: QueryContext
+        ) -> ((RowAccessor) -> Bool) {
+            let lNode = PredicateBuilderHelper<T>.checkNode(lRelNode, context: context)
+            let rNode = PredicateBuilderHelper<T>.checkNode(rRelNode, context: context)
             switch predicate {
             case .LT:
                 if lNode is Relation.LiteralNode && rNode is Relation.LiteralNode {

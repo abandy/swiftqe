@@ -25,67 +25,63 @@ public class PredicateBuilderColParallel { // swiftlint:disable:this type_body_l
             lRelNode: Relation.RelNodeWithType,
             rRelNode: Relation.RelNodeWithType,
             predicate: Predicate,
-            context: QueryContext) -> ((RowAccessor, _: inout [Bool]) async -> Void) {
-                var lNode = lRelNode
-                var rNode = rRelNode
-                if let calcNode = PredicateBuilderHelper<T>.checkBuildCaclField(lNode, context: context) {
-                    lNode = calcNode
-                }
-                if let calcNode = PredicateBuilderHelper<T>.checkBuildCaclField(rNode, context: context) {
-                    rNode = calcNode
-                }
-                switch predicate {
-                case .EQ:
-                    if lNode is Relation.LiteralNode && rNode is Relation.LiteralNode {
-                        let lhs: T? = lNode.getValue(data: EmptyRA.empty, context: context)
-                        let rhs: T? = rNode.getValue(data: EmptyRA.empty, context: context)
-                        let value = lhs! == rhs!
-                        return {(_: any RowAccessor, result: inout [Bool]) async in
-                            for idx in 0..<result.count {result[idx] = value}
-                        }
+            context: QueryContext
+        ) -> ((RowAccessor, _: inout [Bool]) async -> Void) {
+            let lNode = PredicateBuilderHelper<T>.checkNode(lRelNode, context: context)
+            let rNode = PredicateBuilderHelper<T>.checkNode(rRelNode, context: context)
+            switch predicate {
+            case .EQ:
+                if lNode is Relation.LiteralNode && rNode is Relation.LiteralNode {
+                    let lhs: T? = lNode.getValue(data: EmptyRA.empty, context: context)
+                    let rhs: T? = rNode.getValue(data: EmptyRA.empty, context: context)
+                    let value = lhs! == rhs!
+                    return {(_: any RowAccessor, result: inout [Bool]) async in
+                        for idx in 0..<result.count {result[idx] = value}
                     }
+                }
 
-                    return {(row: any RowAccessor, result: inout [Bool]) async in
-                        let localRow = row.clone()
-                        for idx in 0..<result.count {
-                            _ = localRow.to(rowIndex: UInt(idx))
-                            let lhs: T? = lNode.getValue(data: localRow, context: context)
-                            let rhs: T? = rNode.getValue(data: localRow, context: context)
-                            if lhs == nil || rhs == nil {result[idx] = false
-                            } else {result[idx] = lhs! == rhs!}
-                        }
+                return {(row: any RowAccessor, result: inout [Bool]) async in
+                    let localRow = row.clone()
+                    for idx in 0..<result.count {
+                        _ = localRow.to(rowIndex: UInt(idx))
+                        let lhs: T? = lNode.getValue(data: localRow, context: context)
+                        let rhs: T? = rNode.getValue(data: localRow, context: context)
+                        if lhs == nil || rhs == nil {result[idx] = false
+                        } else {result[idx] = lhs! == rhs!}
                     }
-                case .NEQ:
-                    if lNode is Relation.LiteralNode && rNode is Relation.LiteralNode {
-                        let lhs: T? = lNode.getValue(data: EmptyRA.empty, context: context)
-                        let rhs: T? = rNode.getValue(data: EmptyRA.empty, context: context)
-                        let value = lhs! != rhs!
-                        return {(_: any RowAccessor, result: inout [Bool]) async in
-                            for idx in 0..<result.count {result[idx] = value}
-                        }
-                    }
-
-                    return {(row: any RowAccessor, result: inout [Bool]) async in
-                        let localRow = row.clone()
-                        for idx in 0..<result.count {
-                            _ = localRow.to(rowIndex: UInt(idx))
-                            let lhs: T? = lNode.getValue(data: localRow, context: context)
-                            let rhs: T? = rNode.getValue(data: localRow, context: context)
-                            if lhs == nil || rhs == nil {result[idx] = false
-                            } else {result[idx] = lhs! != rhs!}
-                        }
-                    }
-                default:
-                    fatalError("Comparison operator not valid for comparison: \(predicate)")
                 }
+            case .NEQ:
+                if lNode is Relation.LiteralNode && rNode is Relation.LiteralNode {
+                    let lhs: T? = lNode.getValue(data: EmptyRA.empty, context: context)
+                    let rhs: T? = rNode.getValue(data: EmptyRA.empty, context: context)
+                    let value = lhs! != rhs!
+                    return {(_: any RowAccessor, result: inout [Bool]) async in
+                        for idx in 0..<result.count {result[idx] = value}
+                    }
+                }
+
+                return {(row: any RowAccessor, result: inout [Bool]) async in
+                    let localRow = row.clone()
+                    for idx in 0..<result.count {
+                        _ = localRow.to(rowIndex: UInt(idx))
+                        let lhs: T? = lNode.getValue(data: localRow, context: context)
+                        let rhs: T? = rNode.getValue(data: localRow, context: context)
+                        if lhs == nil || rhs == nil {result[idx] = false
+                        } else {result[idx] = lhs! != rhs!}
+                    }
+                }
+            default:
+                fatalError("Comparison operator not valid for comparison: \(predicate)")
             }
+        }
 
         public func getValue(
             node: Relation.RelNodeWithType,
             data: RowAccessor,
-            context: QueryContext) -> T? {
-                return node.getValue(data: data, context: context)
-            }
+            context: QueryContext
+        ) -> T? {
+            return node.getValue(data: data, context: context)
+        }
     }
 
     public class ComparionOps<T: Comparable>: EqualOps<T> {
@@ -97,103 +93,96 @@ public class PredicateBuilderColParallel { // swiftlint:disable:this type_body_l
             lRelNode: Relation.RelNodeWithType,
             rRelNode: Relation.RelNodeWithType,
             predicate: Predicate,
-            context: QueryContext) -> ((RowAccessor, _: inout [Bool]) async -> Void) {
-                var lNode = lRelNode
-                var rNode = rRelNode
-
-                if let calcNode = PredicateBuilderHelper<T>.checkBuildCaclField(lNode, context: context) {
-                    lNode = calcNode
+            context: QueryContext
+        ) -> ((RowAccessor, _: inout [Bool]) async -> Void) {
+            let lNode = PredicateBuilderHelper<T>.checkNode(lRelNode, context: context)
+            let rNode = PredicateBuilderHelper<T>.checkNode(rRelNode, context: context)
+            switch predicate {
+            case .LT:
+                if lNode is Relation.LiteralNode && rNode is Relation.LiteralNode {
+                    let lhs: T? = lNode.getValue(data: EmptyRA.empty, context: context)
+                    let rhs: T? = rNode.getValue(data: EmptyRA.empty, context: context)
+                    let value = lhs! < rhs!
+                    return {(_: any RowAccessor, result: inout [Bool]) async in
+                        for idx in 0..<result.count {result[idx] = value}
+                    }
                 }
-                if let calcNode = PredicateBuilderHelper<T>.checkBuildCaclField(rNode, context: context) {
-                    rNode = calcNode
+
+                return {(row: any RowAccessor, result: inout [Bool]) async in
+                    let localRow = row.clone()
+                    for idx in 0..<result.count {
+                        _ = localRow.to(rowIndex: UInt(idx))
+                        let lhs: T? = lNode.getValue(data: localRow, context: context)
+                        let rhs: T? = rNode.getValue(data: localRow, context: context)
+                        if lhs == nil || rhs == nil {result[idx] = false
+                        } else {result[idx] = lhs! < rhs!}
+                    }
+                }
+            case .GT:
+                if lNode is Relation.LiteralNode && rNode is Relation.LiteralNode {
+                    let lhs: T? = lNode.getValue(data: EmptyRA.empty, context: context)
+                    let rhs: T? = rNode.getValue(data: EmptyRA.empty, context: context)
+                    let value = lhs! > rhs!
+                    return {(_: any RowAccessor, result: inout [Bool]) async in
+                        for idx in 0..<result.count {result[idx] = value}
+                    }
                 }
 
-                switch predicate {
-                case .LT:
-                    if lNode is Relation.LiteralNode && rNode is Relation.LiteralNode {
-                        let lhs: T? = lNode.getValue(data: EmptyRA.empty, context: context)
-                        let rhs: T? = rNode.getValue(data: EmptyRA.empty, context: context)
-                        let value = lhs! < rhs!
-                        return {(_: any RowAccessor, result: inout [Bool]) async in
-                            for idx in 0..<result.count {result[idx] = value}
-                        }
+                return {(row: any RowAccessor, result: inout [Bool]) async in
+                    let localRow = row.clone()
+                    for idx in 0..<result.count {
+                        _ = localRow.to(rowIndex: UInt(idx))
+                        let lhs: T? = lNode.getValue(data: localRow, context: context)
+                        let rhs: T? = rNode.getValue(data: localRow, context: context)
+                        if lhs == nil || rhs == nil {result[idx] = false
+                        } else {result[idx] = lhs! > rhs!}
                     }
-
-                    return {(row: any RowAccessor, result: inout [Bool]) async in
-                        let localRow = row.clone()
-                        for idx in 0..<result.count {
-                            _ = localRow.to(rowIndex: UInt(idx))
-                            let lhs: T? = lNode.getValue(data: localRow, context: context)
-                            let rhs: T? = rNode.getValue(data: localRow, context: context)
-                            if lhs == nil || rhs == nil {result[idx] = false
-                            } else {result[idx] = lhs! < rhs!}
-                        }
-                    }
-                case .GT:
-                    if lNode is Relation.LiteralNode && rNode is Relation.LiteralNode {
-                        let lhs: T? = lNode.getValue(data: EmptyRA.empty, context: context)
-                        let rhs: T? = rNode.getValue(data: EmptyRA.empty, context: context)
-                        let value = lhs! > rhs!
-                        return {(_: any RowAccessor, result: inout [Bool]) async in
-                            for idx in 0..<result.count {result[idx] = value}
-                        }
-                    }
-
-                    return {(row: any RowAccessor, result: inout [Bool]) async in
-                        let localRow = row.clone()
-                        for idx in 0..<result.count {
-                            _ = localRow.to(rowIndex: UInt(idx))
-                            let lhs: T? = lNode.getValue(data: localRow, context: context)
-                            let rhs: T? = rNode.getValue(data: localRow, context: context)
-                            if lhs == nil || rhs == nil {result[idx] = false
-                            } else {result[idx] = lhs! > rhs!}
-                        }
-                    }
-                case .LTE:
-                    if lNode is Relation.LiteralNode && rNode is Relation.LiteralNode {
-                        let lhs: T? = lNode.getValue(data: EmptyRA.empty, context: context)
-                        let rhs: T? = rNode.getValue(data: EmptyRA.empty, context: context)
-                        let value = lhs! <= rhs!
-                        return {(_: any RowAccessor, result: inout [Bool]) async in
-                            for idx in 0..<result.count {result[idx] = value}
-                        }
-                    }
-
-                    return {(row: any RowAccessor, result: inout [Bool]) async in
-                        let localRow = row.clone()
-                        for idx in 0..<result.count {
-                            _ = localRow.to(rowIndex: UInt(idx))
-                            let lhs: T? = lNode.getValue(data: localRow, context: context)
-                            let rhs: T? = rNode.getValue(data: localRow, context: context)
-                            if lhs == nil || rhs == nil {result[idx] = false
-                            } else {result[idx] = lhs! <= rhs!}
-                        }
-                    }
-
-                case .GTE:
-                    if lNode is Relation.LiteralNode && rNode is Relation.LiteralNode {
-                        let lhs: T? = lNode.getValue(data: EmptyRA.empty, context: context)
-                        let rhs: T? = rNode.getValue(data: EmptyRA.empty, context: context)
-                        let value = lhs! >= rhs!
-                        return {(_: any RowAccessor, result: inout [Bool]) async in
-                            for idx in 0..<result.count {result[idx] = value}
-                        }
-                    }
-
-                    return {(row: any RowAccessor, result: inout [Bool]) async in
-                        let localRow = row.clone()
-                        for idx in 0..<result.count {
-                            _ = localRow.to(rowIndex: UInt(idx))
-                            let lhs: T? = lNode.getValue(data: localRow, context: context)
-                            let rhs: T? = rNode.getValue(data: localRow, context: context)
-                            if lhs == nil || rhs == nil {result[idx] = false
-                            } else {result[idx] = lhs! >= rhs!}
-                        }
-                    }
-                default:
-                    return super.build(lRelNode: lNode, rRelNode: rNode, predicate: predicate, context: context)
                 }
+            case .LTE:
+                if lNode is Relation.LiteralNode && rNode is Relation.LiteralNode {
+                    let lhs: T? = lNode.getValue(data: EmptyRA.empty, context: context)
+                    let rhs: T? = rNode.getValue(data: EmptyRA.empty, context: context)
+                    let value = lhs! <= rhs!
+                    return {(_: any RowAccessor, result: inout [Bool]) async in
+                        for idx in 0..<result.count {result[idx] = value}
+                    }
+                }
+
+                return {(row: any RowAccessor, result: inout [Bool]) async in
+                    let localRow = row.clone()
+                    for idx in 0..<result.count {
+                        _ = localRow.to(rowIndex: UInt(idx))
+                        let lhs: T? = lNode.getValue(data: localRow, context: context)
+                        let rhs: T? = rNode.getValue(data: localRow, context: context)
+                        if lhs == nil || rhs == nil {result[idx] = false
+                        } else {result[idx] = lhs! <= rhs!}
+                    }
+                }
+
+            case .GTE:
+                if lNode is Relation.LiteralNode && rNode is Relation.LiteralNode {
+                    let lhs: T? = lNode.getValue(data: EmptyRA.empty, context: context)
+                    let rhs: T? = rNode.getValue(data: EmptyRA.empty, context: context)
+                    let value = lhs! >= rhs!
+                    return {(_: any RowAccessor, result: inout [Bool]) async in
+                        for idx in 0..<result.count {result[idx] = value}
+                    }
+                }
+
+                return {(row: any RowAccessor, result: inout [Bool]) async in
+                    let localRow = row.clone()
+                    for idx in 0..<result.count {
+                        _ = localRow.to(rowIndex: UInt(idx))
+                        let lhs: T? = lNode.getValue(data: localRow, context: context)
+                        let rhs: T? = rNode.getValue(data: localRow, context: context)
+                        if lhs == nil || rhs == nil {result[idx] = false
+                        } else {result[idx] = lhs! >= rhs!}
+                    }
+                }
+            default:
+                return super.build(lRelNode: lNode, rRelNode: rNode, predicate: predicate, context: context)
             }
+        }
     }
 
     public var compOps: [SqlType: PredicateComparorColParallel]
