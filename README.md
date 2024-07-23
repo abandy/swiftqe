@@ -35,6 +35,14 @@ This repo uses submodules and in order to build the arrow submodule will need to
 - MAX
 - STDDEV
 
+### Scalar Funcs:
+#### Numeric:
+- SUM
+- AVG
+#### String:
+- LEN
+- LOWER
+
 ## Engine Config Options:
 
 ### failOnSqlParseError: 
