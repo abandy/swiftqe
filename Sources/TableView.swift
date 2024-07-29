@@ -163,7 +163,7 @@ public class JoinView: TableViewProtocol, Sequence {
 
     public subscript(_ index: UInt) -> RowAccessor? {
         if rowAccessor == nil {
-            self.rowAccessor = ViewsRowAccessor(views: views, indicies: self.tableIndexes)
+            self.rowAccessor = JoinsRowAccessor(views: self)
         }
 
         if rowAccessor!.to(rowIndex: index) {

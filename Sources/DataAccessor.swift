@@ -126,7 +126,7 @@ public struct FieldInfo {
 }
 
 public class ViewsRowAccessor: RowAccessor {
-    var nextIndex: UInt = 0
+    var doIncrement = false
     public var rowIndex: UInt = 0
     public private(set) var count: UInt = 0
     private let views: [TableViewProtocol]
@@ -168,8 +168,8 @@ public class ViewsRowAccessor: RowAccessor {
 
     public func next() -> Bool {
         if self.rowIndex < count {
-            self.rowIndex = self.nextIndex
-            self.nextIndex += 1
+            if doIncrement { self.rowIndex += 1
+            } else { doIncrement = true}
             return true
         }
 
@@ -207,7 +207,7 @@ public class ViewsRowAccessor: RowAccessor {
 }
 
 public class JoinsRowAccessor: RowAccessor {
-    var nextIndex: UInt = 0
+    var doIncrement = false
     public var rowIndex: UInt = 0
     public private(set) var count: UInt = 0
     private let views: JoinView
@@ -237,8 +237,8 @@ public class JoinsRowAccessor: RowAccessor {
 
     public func next() -> Bool {
         if self.rowIndex < count {
-            self.rowIndex = self.nextIndex
-            self.nextIndex += 1
+            if doIncrement { self.rowIndex += 1
+            } else { doIncrement = true }
             return true
         }
 
@@ -248,6 +248,7 @@ public class JoinsRowAccessor: RowAccessor {
     public func to(rowIndex: UInt) -> Bool {
         if rowIndex < count {
             self.rowIndex = rowIndex
+            self.doIncrement = true
             return true
         }
 
@@ -259,6 +260,75 @@ public class JoinsRowAccessor: RowAccessor {
             let colData = fieldInfo.holder.array
             let colRowIndex = self.views.tableIndexes[fieldInfo.index]
             return colData.asAny(colRowIndex[Int(self.rowIndex)])
+        }
+
+        return nil
+    }
+}
+
+public class CartesianRowAccessor: RowAccessor {
+    var doIncrement = false
+    public var rowIndex: UInt = 0
+    public private(set) var count: UInt = 0
+    private let views: [TableViewProtocol]
+    private var fieldLookup = [Int: FieldInfo]()
+    private var rowIndexes: [UInt]
+    private var viewCounts = [UInt]()
+
+    private init(_ views: [TableViewProtocol], count: UInt, ftoC: [Int: FieldInfo]) {
+        self.views = views
+        self.count = count
+        self.rowIndexes = [UInt](repeating: 0, count: views.count)
+        for view in views { viewCounts.append(view.count) }
+        self.fieldLookup = ftoC
+    }
+
+    public func clone() -> RowAccessor {
+        return CartesianRowAccessor(self.views, count: self.count, ftoC: self.fieldLookup)
+    }
+
+    init(views: [TableViewProtocol], indicies: [[UInt]]? = nil) {
+        self.views = views
+        self.rowIndexes = [UInt](repeating: 0, count: views.count)
+        for view in views { viewCounts.append(view.count) }
+        for index in 0..<views.count {
+            let view = views[index]
+                count *= view.count
+
+            for fToC in view.fieldToColumn {
+                fieldLookup[fToC.key]  = FieldInfo(holder: fToC.value,
+                                                   index: index)
+            }
+        }
+    }
+
+    public func next() -> Bool {
+        if self.rowIndex < count {
+            if doIncrement { self.rowIndex += 1
+            } else { doIncrement = true}
+            return true
+        }
+
+        return false
+    }
+
+    public func to(rowIndex: UInt) -> Bool {
+        return false
+    }
+
+    public subscript(_ index: Int) -> Any? {
+        if let fieldInfo = fieldLookup[index] {
+            let colData = fieldInfo.holder.array
+            for viewIndex in views.count-1...0 {
+                if rowIndexes[viewIndex] == viewCounts[viewIndex] {
+                    rowIndexes[viewIndex] = 0
+                } else {
+                    rowIndexes[viewIndex] += 1
+                    break
+                }
+            }
+            let colRowIndex = self.rowIndexes[fieldInfo.index]
+            return colData.asAny(colRowIndex)
         }
 
         return nil

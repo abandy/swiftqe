@@ -20,13 +20,13 @@ public enum SqlType: Int32 {
 }
 
 public enum JoinType {
-    case INNER, LEFT, RIGHT, FULL
+    case INNER, LEFT, RIGHT, CROSS
 }
 
 public enum SqlNodeType: String {
     case SELECT, FROM, FILTER, TABLE, FIELD, PREDICATE, LITERAL
     case OPERATOR, LOGICALOPERATOR, NESTED, COMPUTEDFIELD, JOIN, WINDOWFUNC
-    case GROUPBY, ORDERBY, SCALARFUNC, FUNCARGS
+    case GROUPBY, ORDERBY, SCALARFUNC, FUNCARGS, INVALID
 }
 
 public enum WindowFuncType: String {
@@ -39,7 +39,7 @@ public enum ScalarFuncType: String {
 
 public class SqlNode {
     public let type: SqlNodeType
-    fileprivate init(type: SqlNodeType) {
+    init(type: SqlNodeType) {
         self.type = type
     }
 

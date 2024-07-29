@@ -43,6 +43,48 @@ final class JoinTests: XCTestCase {
         var five: Int32?
     }
 
+    func testCartesian() throws {
+        var infos = [TestInfo]()
+        for index in 0..<500 {
+            infos.append(TestInfo(one: Int32(index), two: "Test\(index)"))
+        }
+
+        var info2s = [TestInfo2]()
+        for index in 0..<1000 {
+            info2s.append(TestInfo2(five: Int32(index * 5), six: "Test\(index)"))
+        }
+
+        let dmlInput = """
+                    SELECT tab.one as three, tab.two, tab2.five as five, tab2.six
+                    FROM tab, tab2
+                    """
+        let engine = QueryEngine()
+        engine.add(try ArrowEncoder.encode(infos)!, name: "tab")
+        engine.add(try ArrowEncoder.encode(info2s)!, name: "tab2")
+        XCTAssertThrowsError(try engine.run(dmlInput, failOnSqlParseError: true))
+    }
+
+    func testCross() throws {
+        var infos = [TestInfo]()
+        for index in 0..<500 {
+            infos.append(TestInfo(one: Int32(index), two: "Test\(index)"))
+        }
+
+        var info2s = [TestInfo2]()
+        for index in 0..<1000 {
+            info2s.append(TestInfo2(five: Int32(index * 5), six: "Test\(index)"))
+        }
+
+        let dmlInput = """
+                    SELECT tab.one as three, tab.two, tab2.five as five, tab2.six
+                    FROM tab CROSS JOIN tab2
+                    """
+        let engine = QueryEngine()
+        engine.add(try ArrowEncoder.encode(infos)!, name: "tab")
+        engine.add(try ArrowEncoder.encode(info2s)!, name: "tab2")
+        XCTAssertThrowsError(try engine.run(dmlInput, failOnSqlParseError: true))
+    }
+
     func testInner() throws {
         var infos = [TestInfo]()
         for index in 0..<500 {

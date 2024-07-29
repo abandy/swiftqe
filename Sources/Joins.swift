@@ -96,7 +96,7 @@ public class NestedJoin {
     }
 }
 
-public class JoinHelper {
+public class Joins {
     public static func innerJoin(_ filter: FilterBuilder,
                                  lhs: TableViewProtocol,
                                  rhs: TableViewProtocol,
@@ -104,7 +104,7 @@ public class JoinHelper {
         let predicate = filter.predicateNode
         let views = JoinView([lhs, rhs], joinType: joinType)
         if let col1 = predicate.children[0] as? Relation.FieldBasicNode,
-            let col2 = predicate.children[1] as? Relation.FieldBasicNode {
+           let col2 = predicate.children[1] as? Relation.FieldBasicNode {
             if predicate.op == Predicate.EQ {
                 let join: HashJoin<Int32> = HashJoin(lhs: lhs,
                                                      rhs: rhs,
@@ -120,11 +120,11 @@ public class JoinHelper {
                 views.finish()
                 return views
             }
-        } else {
-            let join: NestedJoin = NestedJoin(lhs: lhs, rhs: rhs, filter: filter)
-            join.scan(views: views)
-            views.finish()
-            return views
         }
+
+        let join: NestedJoin = NestedJoin(lhs: lhs, rhs: rhs, filter: filter)
+        join.scan(views: views)
+        views.finish()
+        return views
     }
 }

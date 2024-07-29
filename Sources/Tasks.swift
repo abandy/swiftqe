@@ -67,7 +67,7 @@ public class RBInnerJoinTask {
     public func execute() {
         let joinDef = self.ij.join
         let filter = FilterFactory.load(joinDef.predicate as? Relation.PredicateNode, context: context)
-        self.joinView = JoinHelper.innerJoin(filter, lhs: self.lhs, rhs: self.rhs, joinType: joinDef.type)
+        self.joinView = Joins.innerJoin(filter, lhs: self.lhs, rhs: self.rhs, joinType: joinDef.type)
     }
 }
 

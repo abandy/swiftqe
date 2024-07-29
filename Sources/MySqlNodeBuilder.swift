@@ -109,6 +109,7 @@ public class MySqlNodeBuilder {
 
         override func visitChildren(_ node: RuleNode) -> SqlNode? {
             var lastTable: SqlTableNode?
+            var joinAdded = false
             for index in 0..<node.getChildCount() {
                 let childNode = node[index]
                 if childNode is MySqlParser.AtomTableItemContext {
@@ -122,6 +123,7 @@ public class MySqlNodeBuilder {
                                     joinType: .INNER)) as? SqlTableNode
                 }else if  childNode is MySqlParser.JoinSpecContext {
                     let joinExp = childNode.accept(JoinSpecVisitor(selectNode, context: self.context))
+                    joinAdded = true
                     selectNode.joins.append(
                         SqlJoinNode(self.joinType,
                                     left: self.leftTable,
@@ -132,6 +134,17 @@ public class MySqlNodeBuilder {
                 }
             }
             
+            if !joinAdded && lastTable != nil {
+                if self.joinType == .CROSS {
+                    selectNode.joins.append(
+                        SqlJoinNode(self.joinType,
+                                    left: self.leftTable,
+                                    right: lastTable!,
+                                    predicate: SqlNode(type: .INVALID)))
+                } else {
+                    self.selectNode.invalidError("InnerJoinVisitor", msg: "Join type without ON clause not supported")
+                }
+            }
             return lastTable
         }
     }
@@ -144,21 +157,27 @@ public class MySqlNodeBuilder {
                 if childNode is MySqlParser.AtomTableItemContext {
                     tableNode = SqlTableNode(childNode.getText())
                     selectNode.tables.append(tableNode!)
-                } else if childNode is MySqlParser.InnerJoinContext {
-                    tableNode = childNode.accept(
-                        JoinVisitor(selectNode,
-                                    context: self.context,
-                                    leftTable: tableNode!,
-                                    joinType: .INNER)) as? SqlTableNode
-                }else if let outerJoinNode = childNode as? MySqlParser.OuterJoinContext {
-                    let joinType: JoinType = outerJoinNode.LEFT() != nil ?
-                        .LEFT : outerJoinNode.RIGHT() != nil ?
-                        .RIGHT : .FULL
+                } else if let innerJoinNode = childNode as? MySqlParser.InnerJoinContext {
+                    let joinType: JoinType = innerJoinNode.CROSS() != nil ?
+                        .CROSS : .INNER
                     tableNode = childNode.accept(
                         JoinVisitor(selectNode,
                                     context: self.context,
                                     leftTable: tableNode!,
                                     joinType: joinType)) as? SqlTableNode
+                }else if let outerJoinNode = childNode as? MySqlParser.OuterJoinContext {
+                    let joinType: JoinType? = outerJoinNode.LEFT() != nil ?
+                        .LEFT : outerJoinNode.RIGHT() != nil ?
+                        .RIGHT : nil
+                    if joinType == nil {
+                        self.selectNode.invalidError("TableSourceVisitor", msg: "Join type currently not supported: \(outerJoinNode)")
+                    }
+
+                    tableNode = childNode.accept(
+                        JoinVisitor(selectNode,
+                                    context: self.context,
+                                    leftTable: tableNode!,
+                                    joinType: joinType!)) as? SqlTableNode
                 } else {
                     self.selectNode.unknownNodeError("TableSourceVisitor", node: childNode)
                 }
@@ -174,9 +193,14 @@ public class MySqlNodeBuilder {
                 let childNode = node[index]
                 if childNode is MySqlParser.TableSourceContext {
                     let _ = childNode.accept(TableSourceVisitor(selectNode, context: self.context))
-//                    selectNode.tables.append(SqlTableNode(childNode.getText()))
                 } else {
-                    self.selectNode.unknownNodeError("TablesTreeVisitor", node: childNode)
+                    if childNode.getText() == "," {
+                        self.selectNode.invalidError(
+                            "TablesTreeVisitor",
+                            msg: "Comma seperated tables is currently not supported")
+                    } else {
+                        self.selectNode.unknownNodeError("TablesTreeVisitor", node: childNode)
+                    }
                 }
             }
             
