@@ -13,6 +13,7 @@ public protocol PredicateComparorColParallel {
         context: QueryContext) -> ((RowAccessor, _: inout [Bool]) async -> Void)
 }
 
+@available(iOS 13.0, *)
 public class PredicateBuilderColParallel { // swiftlint:disable:this type_body_length
     public enum CompOps {
         case EQ, NEQ, GT, LT, GTE, LTE

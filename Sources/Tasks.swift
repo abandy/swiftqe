@@ -5,6 +5,7 @@
 
 import Foundation
 import CryptoKit
+import CommonCrypto
 import Arrow
 
 public class RBTableScanTask: Sequence {
@@ -153,7 +154,7 @@ public class GroupByTask {
     }
 
     public func execute() -> [[TableViewProtocol]] {
-        var views = [Int: [UInt]]()
+        var views = [String: [UInt]]()
         let viewReader = ViewsReader(projectViews)
         if self.filterBuilder.build(nil, rowCount: viewReader.count) {
             let appendFunc = {(row: RowAccessor) in
@@ -180,47 +181,63 @@ public class GroupByTask {
     }
 
     public func simpleHash( // swiftlint:disable:this cyclomatic_complexity
-        _ row: RowAccessor) -> Int {
-        var data = Data()
-        let fields = scan.groupBy.fields
-        for field in fields {
-            switch field.type {
-            case .BOOLEAN:
-                let value: Bool? = field.getValue(data: row, context: self.context)
-                appendNil(value, data: &data)
-                let val = value == nil ? false : value!
-                data.append(val ? 1 : 0)
-            case .INT8:
-                appendInt(field.getValue(data: row, context: self.context) as Int8?, data: &data, field: field)
-            case .INT16:
-                appendInt(field.getValue(data: row, context: self.context) as Int16?, data: &data, field: field)
-            case .INT32:
-                appendInt(field.getValue(data: row, context: self.context) as Int32?, data: &data, field: field)
-            case .INT64:
-                appendInt(field.getValue(data: row, context: self.context) as Int64?, data: &data, field: field)
-            case .UINT8:
-                appendInt(field.getValue(data: row, context: self.context) as UInt8?, data: &data, field: field)
-            case .UINT16:
-                appendInt(field.getValue(data: row, context: self.context) as UInt16?, data: &data, field: field)
-            case .UINT32:
-                appendInt(field.getValue(data: row, context: self.context) as UInt32?, data: &data, field: field)
-            case .UINT64:
-                appendInt(field.getValue(data: row, context: self.context) as UInt64?, data: &data, field: field)
-            case .DOUBLE:
-                appendFloat(field.getValue(data: row, context: self.context) as Double?, data: &data, field: field)
-            case .FLOAT:
-                appendFloat(field.getValue(data: row, context: self.context) as Float?, data: &data, field: field)
-            case .VARCHAR:
-                let value = field.getValue(data: row, context: self.context) as String?
-                if let val = value { data.append(val.data(using: .utf8)!)}
+        _ row: RowAccessor) -> String {
+            var data = Data()
+            let fields = scan.groupBy.fields
+            for field in fields {
+                switch field.type {
+                case .BOOLEAN:
+                    let value: Bool? = field.getValue(data: row, context: self.context)
+                    appendNil(value, data: &data)
+                    let val = value == nil ? false : value!
+                    data.append(val ? 1 : 0)
+                case .INT8:
+                    appendInt(field.getValue(data: row, context: self.context) as Int8?, data: &data, field: field)
+                case .INT16:
+                    appendInt(field.getValue(data: row, context: self.context) as Int16?, data: &data, field: field)
+                case .INT32:
+                    appendInt(field.getValue(data: row, context: self.context) as Int32?, data: &data, field: field)
+                case .INT64:
+                    appendInt(field.getValue(data: row, context: self.context) as Int64?, data: &data, field: field)
+                case .UINT8:
+                    appendInt(field.getValue(data: row, context: self.context) as UInt8?, data: &data, field: field)
+                case .UINT16:
+                    appendInt(field.getValue(data: row, context: self.context) as UInt16?, data: &data, field: field)
+                case .UINT32:
+                    appendInt(field.getValue(data: row, context: self.context) as UInt32?, data: &data, field: field)
+                case .UINT64:
+                    appendInt(field.getValue(data: row, context: self.context) as UInt64?, data: &data, field: field)
+                case .DOUBLE:
+                    appendFloat(field.getValue(data: row, context: self.context) as Double?, data: &data, field: field)
+                case .FLOAT:
+                    appendFloat(field.getValue(data: row, context: self.context) as Float?, data: &data, field: field)
+                case .VARCHAR:
+                    let value = field.getValue(data: row, context: self.context) as String?
+                    if let val = value { data.append(val.data(using: .utf8)!)}
+                }
+            }
+
+            if #available(iOS 13.0, *) {
+                let digest = CryptoKit.Insecure.MD5.hash(data: data)
+                return digest.map {
+                        String(format: "%02hhx", $0)
+                    }.joined()
+            } else {
+                return md5Hash(data: data)
             }
 
         }
 
-        var md5Hash = CryptoKit.Insecure.MD5()
-        md5Hash.update(data: data)
-        return md5Hash.finalize().hashValue
-
+    private func md5Hash (data: Data) -> String {
+        var digest = [UInt8](repeating: 0, count: Int(CC_MD5_DIGEST_LENGTH))
+        _ = data.withUnsafeBytes {
+            CC_MD5($0.baseAddress, UInt32(data.count), &digest)
+        }
+        var md5String = ""
+        for byte in digest {
+            md5String += String(format: "%02x", UInt8(byte))
+        }
+        return md5String
     }
 
     private func appendNil(_ rowData: Any?, data: inout Data) {
