@@ -10,7 +10,7 @@ let package = Package(
     ],
     dependencies: [
         .package(url: "https://github.com/antlr/antlr4.git", from: "4.13.1"),
-        .package(name: "Arrow", path: "arrow/swift/Arrow")
+        .package(name: "Arrow", path: "vendor/Arrow")
     ],
     targets: [
         // Targets are the basic building blocks of a package, defining a module or a test suite.

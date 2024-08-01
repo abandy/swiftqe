@@ -1,3 +1,0 @@
-[submodule "arrow"]
-	path = arrow
-	url = git@github.com:apache/arrow.git
