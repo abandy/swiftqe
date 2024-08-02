@@ -37,8 +37,8 @@ This repo uses submodules and in order to build the arrow submodule will need to
 
 ### Scalar Funcs:
 #### Numeric:
-- SUM
-- AVG
+- ABS
+- POWER
 #### String:
 - LEN
 - LOWER
