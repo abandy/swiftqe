@@ -73,6 +73,8 @@ public class TableDef: Equatable {
                 sqlType = SqlType.DOUBLE
             case .string:
                 sqlType = SqlType.VARCHAR
+            case .date32, .date64:
+                sqlType = SqlType.DATE
             default:
                 fatalError("Unsupported field type id: \(field.type.id)")
             }

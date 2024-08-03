@@ -14,6 +14,8 @@ public protocol PredicateComparorColParallel {
 }
 
 @available(iOS 13.0, *)
+@available(tvOS 13.0, *)
+@available(watchOS 6.0, *)
 public class PredicateBuilderColParallel { // swiftlint:disable:this type_body_length
     public enum CompOps {
         case EQ, NEQ, GT, LT, GTE, LTE
@@ -222,7 +224,8 @@ public class PredicateBuilderColParallel { // swiftlint:disable:this type_body_l
             .UINT64: ComparionOps<UInt64>(),
             .FLOAT: ComparionOps<Float>(),
             .DOUBLE: ComparionOps<Double>(),
-            .VARCHAR: ComparionOps<String>()
+            .VARCHAR: ComparionOps<String>(),
+            .DATE: ComparionOps<Date>()
         ]
     }
 

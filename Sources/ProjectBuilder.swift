@@ -49,6 +49,8 @@ public class ProjectBuilder {
                 try makeBuilder(Double.self, field: field)
             case .VARCHAR:
                 try makeBuilder(String.self, field: field)
+            case .DATE:
+                try makeBuilder(Date.self, field: field)
             }
         }
 

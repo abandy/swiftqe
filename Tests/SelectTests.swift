@@ -29,6 +29,10 @@ final class SelectTests: XCTestCase {
         var stringField: String? = ""
     }
 
+    class DateField: Codable {
+        var dateField: Date?
+    }
+
     func testInt( // swiftlint:disable:this function_body_length
     ) throws {
         do {
@@ -147,6 +151,39 @@ final class SelectTests: XCTestCase {
             XCTAssertEqual(outputFields.count, 10)
             for itemIndex in 0..<outputFields.count {
                 XCTAssertEqual(outputFields[itemIndex].stringField!, "test\(itemIndex)")
+            }
+        } catch let error {
+            XCTFail("Error occured executing query: \(error)")
+        }
+    }
+
+    func testDate(
+    ) throws {
+        do {
+            var testDates = [DateField]()
+            let currentDateFormatter = DateFormatter()
+            currentDateFormatter.dateFormat = "yyyy-MM-dd 00:00:00"
+            let baseDate = currentDateFormatter.date(from: "2024-08-01")!
+            let calendar = Calendar(identifier: .gregorian)
+            var dateCmoponents = calendar.dateComponents([.year, .month, .day], from: baseDate)
+            for _ in 0..<10 {
+                let date = DateField()
+                dateCmoponents.day! += 1
+                date.dateField = calendar.date(from: dateCmoponents)
+                testDates.append(date)
+            }
+
+            let engine = QueryEngine()
+            engine.add(try ArrowEncoder.encode(testDates)!, name: "tab")
+            let queryRb = try engine.run("SELECT dateField FROM tab")!
+            XCTAssertEqual(queryRb.length, 10)
+            XCTAssertEqual(queryRb.columnCount, 1)
+            let decoder = ArrowDecoder(queryRb)
+            let outputFields = try decoder.decode(DateField.self)
+            XCTAssertEqual(outputFields.count, 10)
+            for itemIndex in 0..<outputFields.count {
+                XCTAssertEqual(Int(outputFields[itemIndex].dateField!.timeIntervalSince1970),
+                               Int(testDates[itemIndex].dateField!.timeIntervalSince1970))
             }
         } catch let error {
             XCTFail("Error occured executing query: \(error)")

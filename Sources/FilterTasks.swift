@@ -38,11 +38,15 @@ public class FilterFactory {
         case .col:
             return FilterBuilderCol(predicate: predicate!, context: context)
         case .colP:
-            if #available(iOS 13.0, *) {
-                return FilterBuilderColParallel(predicate: predicate!, context: context)
-            } else {
+            guard #unavailable(iOS 13.0) else {
                 return FilterBuilderCol(predicate: predicate!, context: context)
             }
+
+            guard #unavailable(tvOS 13.0) else {
+                return FilterBuilderCol(predicate: predicate!, context: context)
+            }
+
+            return FilterBuilderColParallel(predicate: predicate!, context: context)
         }
     }
 }
@@ -116,6 +120,8 @@ public class FilterBuilderRow: FilterBuilder {
 }
 
 @available(iOS 13.0, *)
+@available(tvOS 13.0, *)
+@available(watchOS 6.0, *)
 public class FilterBuilderColParallel: FilterBuilder {
     public let wrapper: PredicateBuilderColParallel
     public var predicateNode: Relation.PredicateNode { wrapper.predicateNode }

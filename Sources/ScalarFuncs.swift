@@ -76,6 +76,11 @@ extension FieldScalarFuncDef {
                 return nil
             }
             return inputTypes[1] != .INT32 ? nil : POWER(inputTypes)
+        case .DATE:
+            if inputTypes.count != 1 {
+                return nil
+            }
+            return inputTypes[0] != .VARCHAR ? nil : DATE(inputTypes)
         }
     }
 
@@ -186,6 +191,60 @@ extension FieldScalarFuncDef {
             }
 
             return (data![0]! as! String).lowercased()
+        }
+    }
+
+    class DATE: ScalarFunc {
+        var sqlType: SqlType
+        var funcSqlType: SqlType {.DATE}
+        var date: Date?
+        var hasBuiltValue = false
+
+        required init(_ sqlType: [SqlType]) {
+            self.sqlType = .VARCHAR
+            self.date = nil
+        }
+
+        func buildValue(_ dateStr: String) {
+            var format = ""
+            self.hasBuiltValue = true
+            if dateStr.range(of: "^\\d{4}-\\d{2}-\\d{2}$", options: .regularExpression) != nil {
+                format = "yyyy-MM-dd"
+            } else if dateStr.range(of: "^\\d{4}-\\d{2}-\\d{2}[T\\s]\\d{2}:\\d{2}:\\d{2}$",
+                                    options: .regularExpression) != nil {
+                if dateStr.firstIndex(of: "T") != nil {
+                    format = "yyyy-MM-dd'T'HH:mm:ss"
+                } else {
+                    format = "yyyy-MM-dd HH:mm:ss"
+                }
+            } else if dateStr.range(of: "\\d{4}-\\d{2}-\\d{2}[T\\s]\\d{2}:\\d{2}:\\d{2}\\s*[\\+-]\\d{2}:\\d{2}",
+                                    options: .regularExpression) != nil {
+                if dateStr.firstIndex(of: "T") != nil {
+                    format = "yyyy-MM-dd'T'HH:mm:ssZ"
+                } else {
+                    format = "yyyy-MM-dd HH:mm:ssZ"
+                }
+            } else {
+                return
+            }
+
+            let currentDateFormatter = DateFormatter()
+            currentDateFormatter.dateFormat = format
+            self.date = currentDateFormatter.date(from: dateStr)
+        }
+
+        func getValue(_ data: [Any?]?) -> Any? {
+            if self.hasBuiltValue {
+                return self.date
+            }
+
+            if data == nil || data!.count != 1 || data![0] == nil {
+                self.hasBuiltValue = true
+                return nil
+            }
+
+            buildValue(data![0]! as! String)
+            return self.date
         }
     }
 }

@@ -16,7 +16,7 @@ public enum Operator {
 
 public enum SqlType: Int32 {
     case BOOLEAN, INT8, UINT8, INT16, UINT16, UINT32, INT32
-    case INT64, UINT64, FLOAT, DOUBLE, VARCHAR
+    case INT64, UINT64, FLOAT, DOUBLE, VARCHAR, DATE
 }
 
 public enum JoinType {
@@ -34,7 +34,7 @@ public enum WindowFuncType: String {
 }
 
 public enum ScalarFuncType: String {
-    case ABS, LENGTH, LOWER, POWER
+    case ABS, LENGTH, LOWER, POWER, DATE
 }
 
 public class SqlNode {

@@ -214,18 +214,26 @@ public class GroupByTask {
                 case .VARCHAR:
                     let value = field.getValue(data: row, context: self.context) as String?
                     if let val = value { data.append(val.data(using: .utf8)!)}
+                case .DATE:
+                    let value = field.getValue(data: row, context: self.context) as Date?
+                    if let val = value {
+                        appendInt(Int(val.timeIntervalSince1970), data: &data, field: field)
+                    }
                 }
             }
 
-            if #available(iOS 13.0, *) {
-                let digest = CryptoKit.Insecure.MD5.hash(data: data)
-                return digest.map {
-                        String(format: "%02hhx", $0)
-                    }.joined()
-            } else {
+            guard #unavailable(tvOS 13.0) else {
                 return md5Hash(data: data)
             }
 
+            guard #unavailable(iOS 13.0) else {
+                return md5Hash(data: data)
+            }
+
+            let digest = CryptoKit.Insecure.MD5.hash(data: data)
+            return digest.map {
+                String(format: "%02hhx", $0)
+            }.joined()
         }
 
     private func md5Hash (data: Data) -> String {

@@ -28,6 +28,10 @@ final class WhereTests: XCTestCase {
         var stringField: String? = ""
     }
 
+    class DateField: Codable {
+        var dateField: Date?
+    }
+
     func testSimpleInt() throws {
         do {
             var testInts = [IntFields]()
@@ -206,6 +210,51 @@ final class WhereTests: XCTestCase {
             engine.add(try ArrowEncoder.encode(testStrings)!, name: "tab")
             for info in queryInfos {
                 XCTAssertEqual(try engine.run(info.query)!.length, UInt(info.cnt))
+            }
+        } catch let error {
+            XCTFail("Error occured executing query: \(error)")
+        }
+    }
+
+    func testDate(
+    ) throws {
+        do {
+            var testDates = [DateField]()
+            let currentDateFormatter = DateFormatter()
+            currentDateFormatter.dateFormat = "yyyy-MM-dd HH:mm:ssZ"
+            let baseDate = currentDateFormatter.date(from: "2024-08-01 00:00:00 +00:00")!
+            let calendar = Calendar(identifier: .gregorian)
+            var dateCmoponents = calendar.dateComponents(
+                [.year, .month, .day, .hour, .minute, .second, .timeZone], from: baseDate)
+            for _ in 0..<10 {
+                let date = DateField()
+                dateCmoponents.day! += 1
+                date.dateField = calendar.date(from: dateCmoponents)
+                testDates.append(date)
+            }
+
+            let queryInfos = [
+                (query: "SELECT dateField FROM tab WHERE dateField <= DATE('2024-08-07T00:00:00 +00:00')",
+                 cnt: 6,
+                 startIndex: 0),
+                (query: "SELECT dateField FROM tab WHERE dateField >= DATE('2024-08-06 20:00:30 -05:00')",
+                 cnt: 4,
+                 startIndex: 6)
+            ]
+
+            for queryInfo in queryInfos {
+                let engine = QueryEngine()
+                engine.add(try ArrowEncoder.encode(testDates)!, name: "tab")
+                let queryRb = try engine.run(queryInfo.query)!
+                XCTAssertEqual(queryRb.length, UInt(queryInfo.cnt))
+                XCTAssertEqual(queryRb.columnCount, 1)
+                let decoder = ArrowDecoder(queryRb)
+                let outputFields = try decoder.decode(DateField.self)
+                XCTAssertEqual(outputFields.count, queryInfo.cnt)
+                for itemIndex in 0..<outputFields.count {
+                    XCTAssertEqual(Int(outputFields[itemIndex].dateField!.timeIntervalSince1970),
+                                   Int(testDates[queryInfo.startIndex + itemIndex].dateField!.timeIntervalSince1970))
+                }
             }
         } catch let error {
             XCTFail("Error occured executing query: \(error)")

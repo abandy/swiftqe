@@ -42,6 +42,13 @@ This repo uses submodules and in order to build the arrow submodule will need to
 #### String:
 - LEN
 - LOWER
+#### Date:
+- DATE: formats
+    - yyyy-MM-dd
+    - yyyy-MM-dd'T'HH:mm:ss
+    - yyyy-MM-dd HH:mm:ss
+    - yyyy-MM-dd'T'HH:mm:ssZ
+    - yyyy-MM-dd HH:mm:ssZ
 
 ## Engine Config Options:
 

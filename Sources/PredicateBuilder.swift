@@ -244,7 +244,8 @@ public class PredicateBuilderBasic {
             .UINT64: ComparionOps<UInt64>(),
             .FLOAT: ComparionOps<Float>(),
             .DOUBLE: ComparionOps<Double>(),
-            .VARCHAR: ComparionOps<String>()
+            .VARCHAR: ComparionOps<String>(),
+            .DATE: ComparionOps<Date>()
         ]
     }
 
