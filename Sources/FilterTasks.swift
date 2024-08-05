@@ -38,15 +38,15 @@ public class FilterFactory {
         case .col:
             return FilterBuilderCol(predicate: predicate!, context: context)
         case .colP:
-            guard #unavailable(iOS 13.0) else {
+            if #unavailable(iOS 13.0) {
                 return FilterBuilderCol(predicate: predicate!, context: context)
-            }
-
-            guard #unavailable(tvOS 13.0) else {
+            }else if #unavailable(tvOS 13.0) {
                 return FilterBuilderCol(predicate: predicate!, context: context)
+            }else if #unavailable(watchOS 6.0) {
+                return FilterBuilderCol(predicate: predicate!, context: context)
+            } else {
+                return FilterBuilderColParallel(predicate: predicate!, context: context)
             }
-
-            return FilterBuilderColParallel(predicate: predicate!, context: context)
         }
     }
 }
