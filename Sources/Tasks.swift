@@ -4,9 +4,17 @@
  */
 
 import Foundation
-import CryptoKit
-import CommonCrypto
 import Arrow
+
+#if canImport(CryptoKit)
+import CryptoKit
+#elseif canImport(Crypto)
+import Crypto
+#endif
+
+import CommonCrypto
+
+
 
 public class RBTableScanTask: Sequence {
     public let tview: TableView
@@ -181,60 +189,70 @@ public class GroupByTask {
     }
 
     public func simpleHash( // swiftlint:disable:this cyclomatic_complexity
-        _ row: RowAccessor) -> String {
-            var data = Data()
-            let fields = scan.groupBy.fields
-            for field in fields {
-                switch field.type {
-                case .BOOLEAN:
-                    let value: Bool? = field.getValue(data: row, context: self.context)
-                    appendNil(value, data: &data)
-                    let val = value == nil ? false : value!
-                    data.append(val ? 1 : 0)
-                case .INT8:
-                    appendInt(field.getValue(data: row, context: self.context) as Int8?, data: &data, field: field)
-                case .INT16:
-                    appendInt(field.getValue(data: row, context: self.context) as Int16?, data: &data, field: field)
-                case .INT32:
-                    appendInt(field.getValue(data: row, context: self.context) as Int32?, data: &data, field: field)
-                case .INT64:
-                    appendInt(field.getValue(data: row, context: self.context) as Int64?, data: &data, field: field)
-                case .UINT8:
-                    appendInt(field.getValue(data: row, context: self.context) as UInt8?, data: &data, field: field)
-                case .UINT16:
-                    appendInt(field.getValue(data: row, context: self.context) as UInt16?, data: &data, field: field)
-                case .UINT32:
-                    appendInt(field.getValue(data: row, context: self.context) as UInt32?, data: &data, field: field)
-                case .UINT64:
-                    appendInt(field.getValue(data: row, context: self.context) as UInt64?, data: &data, field: field)
-                case .DOUBLE:
-                    appendFloat(field.getValue(data: row, context: self.context) as Double?, data: &data, field: field)
-                case .FLOAT:
-                    appendFloat(field.getValue(data: row, context: self.context) as Float?, data: &data, field: field)
-                case .VARCHAR:
-                    let value = field.getValue(data: row, context: self.context) as String?
-                    if let val = value { data.append(val.data(using: .utf8)!)}
-                case .DATE:
-                    let value = field.getValue(data: row, context: self.context) as Date?
-                    if let val = value {
-                        appendInt(Int(val.timeIntervalSince1970), data: &data, field: field)
-                    }
+        _ row: RowAccessor
+    ) -> String {
+        var data = Data()
+        let fields = scan.groupBy.fields
+        for field in fields {
+            switch field.type {
+            case .BOOLEAN:
+                let value: Bool? = field.getValue(data: row, context: self.context)
+                appendNil(value, data: &data)
+                let val = value == nil ? false : value!
+                data.append(val ? 1 : 0)
+            case .INT8:
+                appendInt(field.getValue(data: row, context: self.context) as Int8?, data: &data, field: field)
+            case .INT16:
+                appendInt(field.getValue(data: row, context: self.context) as Int16?, data: &data, field: field)
+            case .INT32:
+                appendInt(field.getValue(data: row, context: self.context) as Int32?, data: &data, field: field)
+            case .INT64:
+                appendInt(field.getValue(data: row, context: self.context) as Int64?, data: &data, field: field)
+            case .UINT8:
+                appendInt(field.getValue(data: row, context: self.context) as UInt8?, data: &data, field: field)
+            case .UINT16:
+                appendInt(field.getValue(data: row, context: self.context) as UInt16?, data: &data, field: field)
+            case .UINT32:
+                appendInt(field.getValue(data: row, context: self.context) as UInt32?, data: &data, field: field)
+            case .UINT64:
+                appendInt(field.getValue(data: row, context: self.context) as UInt64?, data: &data, field: field)
+            case .DOUBLE:
+                appendFloat(field.getValue(data: row, context: self.context) as Double?, data: &data, field: field)
+            case .FLOAT:
+                appendFloat(field.getValue(data: row, context: self.context) as Float?, data: &data, field: field)
+            case .VARCHAR:
+                let value = field.getValue(data: row, context: self.context) as String?
+                if let val = value { data.append(val.data(using: .utf8)!)}
+            case .DATE:
+                let value = field.getValue(data: row, context: self.context) as Date?
+                if let val = value {
+                    appendInt(Int(val.timeIntervalSince1970), data: &data, field: field)
                 }
             }
-
-            guard #unavailable(tvOS 13.0) else {
-                return md5Hash(data: data)
-            }
-
-            guard #unavailable(iOS 13.0) else {
-                return md5Hash(data: data)
-            }
-
-            let digest = CryptoKit.Insecure.MD5.hash(data: data)
-            return digest.map {
-                String(format: "%02hhx", $0)
-            }.joined()
         }
+        
+        guard #unavailable(tvOS 13.0) else {
+            return md5Hash(data: data)
+        }
+        
+        guard #unavailable(iOS 13.0) else {
+            return md5Hash(data: data)
+        }
+        
+#if canImport(CryptoKit)
+        let digest = CryptoKit.Insecure.MD5.hash(data: data)
+        return digest.map {
+            String(format: "%02hhx", $0)
+        }.joined()
+#elseif canImport(Crypto)
+        let digest = Crypto.Insecure.MD5.hash(data: data)
+        return digest.map {
+            String(format: "%02hhx", $0)
+        }.joined()
+#else
+        return md5Hash(data: data)
+#endif
+    }
 
     private func md5Hash (data: Data) -> String {
         var digest = [UInt8](repeating: 0, count: Int(CC_MD5_DIGEST_LENGTH))

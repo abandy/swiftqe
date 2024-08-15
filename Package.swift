@@ -10,7 +10,8 @@ let package = Package(
     ],
     dependencies: [
         .package(url: "https://github.com/antlr/antlr4.git", from: "4.13.1"),
-        .package(name: "Arrow", path: "vendor/Arrow")
+        .package(name: "Arrow", path: "vendor/Arrow"),
+        .package(url: "https://github.com/apple/swift-crypto.git", from: "3.5.2")
     ],
     targets: [
         // Targets are the basic building blocks of a package, defining a module or a test suite.
@@ -19,12 +20,15 @@ let package = Package(
             name: "swiftqe",
             dependencies: [
                 .product(name: "Antlr4", package: "antlr4"),
-                .product(name: "Arrow", package: "Arrow")
+                .product(name: "Arrow", package: "Arrow"),
+                .product(name: "Crypto", package: "swift-crypto", condition: .when(platforms: [.linux]))
             ]),
         .testTarget(
             name: "swiftqetests",
             dependencies: ["swiftqe",
                            .product(name: "Antlr4", package: "antlr4"),
-                           .product(name: "Arrow", package: "Arrow")])
+                           .product(name: "Arrow", package: "Arrow"),
+                           .product(name: "Crypto", package: "swift-crypto", condition: .when(platforms: [.linux]))
+            ]),
     ]
 )
