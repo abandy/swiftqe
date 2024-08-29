@@ -39,9 +39,9 @@ public class FilterFactory {
         case .colP:
             if #unavailable(iOS 13.0) {
                 return FilterBuilderCol(predicate: predicate!, context: context)
-            }else if #unavailable(tvOS 13.0) {
+            } else if #unavailable(tvOS 13.0) {
                 return FilterBuilderCol(predicate: predicate!, context: context)
-            }else if #unavailable(watchOS 6.0) {
+            } else if #unavailable(watchOS 6.0) {
                 return FilterBuilderCol(predicate: predicate!, context: context)
             } else {
                 return FilterBuilderColParallel(predicate: predicate!, context: context)

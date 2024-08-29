@@ -418,6 +418,8 @@ public class MySqlNodeBuilder {
                     sqlNodes.append(fieldNode as! SqlFieldNode)
                 } else if !(childNode is TerminalNode) {
                     self.selectNode.unknownNodeError("ProjectionTreeVisitor", node: childNode)
+                } else if (childNode.getText() == "*") {
+                    sqlNodes.append(SqlFieldStarNode())
                 }
             }
             

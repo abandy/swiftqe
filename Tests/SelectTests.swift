@@ -157,6 +157,82 @@ final class SelectTests: XCTestCase {
         }
     }
 
+    func testStar() throws {
+        do {
+            var testInts = [IntFields]()
+            var offset = 0
+            for index in 0..<10 {
+                offset = index * 8
+                let testInt = IntFields()
+                testInt.int8Field = Int8(offset)
+                testInt.int16Field = Int16(offset + 1)
+                testInt.int32Field = Int32(offset + 2)
+                testInt.int64Field = Int64(offset + 3)
+                testInt.uint8Field = UInt8(offset + 4)
+                testInt.uint16Field = UInt16(offset + 5)
+                testInt.uint32Field = UInt32(offset + 6)
+                testInt.uint64Field = UInt64(offset + 7)
+                testInts.append(testInt)
+            }
+
+            let engine = QueryEngine()
+            engine.add(try ArrowEncoder.encode(testInts)!, name: "tab1")
+            let queryRb = try engine.run("SELECT * FROM tab1")!
+            XCTAssertEqual(queryRb.length, 10)
+            XCTAssertEqual(queryRb.columnCount, 8)
+            let decoder = ArrowDecoder(queryRb)
+            let outputFields = try decoder.decode(IntFields.self)
+            XCTAssertEqual(outputFields.count, 10)
+            offset = 0
+            for itemIndex in 0..<outputFields.count {
+                offset = itemIndex * 8
+                XCTAssertEqual(outputFields[itemIndex].int8Field!, Int8(offset))
+                XCTAssertEqual(outputFields[itemIndex].int16Field!, Int16(offset + 1))
+                XCTAssertEqual(outputFields[itemIndex].int32Field!, Int32(offset + 2))
+                XCTAssertEqual(outputFields[itemIndex].int64Field!, Int64(offset + 3))
+                XCTAssertEqual(outputFields[itemIndex].uint8Field!, UInt8(offset + 4))
+                XCTAssertEqual(outputFields[itemIndex].uint16Field!, UInt16(offset + 5))
+                XCTAssertEqual(outputFields[itemIndex].uint32Field!, UInt32(offset + 6))
+                XCTAssertEqual(outputFields[itemIndex].uint64Field!, UInt64(offset + 7))
+            }
+        } catch let error {
+            XCTFail("Error occured executing query: \(error)")
+        }
+    }
+
+    func testUniqueFieldFailure() throws {
+        var testStrings = [StringField]()
+        for index in 0..<10 {
+            let testData = StringField()
+            testData.stringField = "test\(index)"
+            testStrings.append(testData)
+        }
+
+        let engine = QueryEngine()
+        engine.add(try ArrowEncoder.encode(testStrings)!, name: "tab")
+        XCTAssertThrowsError(
+            try engine.run("SELECT stringField, stringField FROM tab"))
+    }
+
+    func testUniqueFieldAlias() throws {
+        do {
+            var testStrings = [StringField]()
+            for index in 0..<10 {
+                let testData = StringField()
+                testData.stringField = "test\(index)"
+                testStrings.append(testData)
+            }
+
+            let engine = QueryEngine()
+            engine.add(try ArrowEncoder.encode(testStrings)!, name: "tab")
+            let queryRb = try engine.run("SELECT stringField, stringField as field2 FROM tab")!
+            XCTAssertEqual(queryRb.length, 10)
+            XCTAssertEqual(queryRb.columnCount, 2)
+        } catch let error {
+            XCTFail("Error occured executing query: \(error)")
+        }
+    }
+
     func testDate(
     ) throws {
         do {

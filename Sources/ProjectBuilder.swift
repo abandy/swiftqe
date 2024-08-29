@@ -135,4 +135,15 @@ public class ProjectBuilder {
             fatalError("Error building record batch: \(error)")
         }
     }
+
+    public func validateFields() -> ArrowError? {
+        var fieldSet = Set<String>()
+        for col in self.colBuilders {
+            if fieldSet.contains(col.name) {
+                return ArrowError.invalid("Duplicate field name found: \(col.name)")
+            }
+            fieldSet.insert(col.name)
+        }
+        return nil
+    }
 }

@@ -29,6 +29,6 @@ let package = Package(
                            .product(name: "Antlr4", package: "antlr4"),
                            .product(name: "Arrow", package: "Arrow"),
                            .product(name: "Crypto", package: "swift-crypto", condition: .when(platforms: [.linux]))
-            ]),
+            ])
     ]
 )

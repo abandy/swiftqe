@@ -106,6 +106,10 @@ public class QueryEngine {
                     let project = ProjectTask(fields,
                                               context: context,
                                               filterBuilder: groupByViews == nil ? filter: nil)
+                    if let fieldError = project.validate() {
+                        throw fieldError
+                    }
+
                     if let gbViews = groupByViews {
                         for view in gbViews {
                             project.execute(projectViews: view)

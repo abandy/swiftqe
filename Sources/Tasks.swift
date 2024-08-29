@@ -14,8 +14,6 @@ import Crypto
 
 import CommonCrypto
 
-
-
 public class RBTableScanTask: Sequence {
     public let tview: TableView
     let filterBuilder: FilterBuilder?
@@ -95,6 +93,10 @@ public class ProjectTask {
 
     func load(_ rowData: RowAccessor) {
         self.projectBuilder.append(rowData)
+    }
+
+    public func validate() -> ArrowError? {
+        return self.projectBuilder.validateFields()
     }
 
     public func execute(projectViews: [TableViewProtocol]) {
@@ -188,7 +190,7 @@ public class GroupByTask {
         return retTables
     }
 
-    public func simpleHash( // swiftlint:disable:this cyclomatic_complexity
+    public func simpleHash( // swiftlint:disable:this cyclomatic_complexity function_body_length
         _ row: RowAccessor
     ) -> String {
         var data = Data()
@@ -230,15 +232,15 @@ public class GroupByTask {
                 }
             }
         }
-        
+
         guard #unavailable(tvOS 13.0) else {
             return md5Hash(data: data)
         }
-        
+
         guard #unavailable(iOS 13.0) else {
             return md5Hash(data: data)
         }
-        
+
 #if canImport(CryptoKit)
         let digest = CryptoKit.Insecure.MD5.hash(data: data)
         return digest.map {

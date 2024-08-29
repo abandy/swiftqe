@@ -444,6 +444,8 @@ public class Relation { // swiftlint:disable:this type_body_length
                 } else if let complexField = sqlField as? SqlFieldComplexNode {
                     let childNode = try convert(complexField)
                     fields.append(childNode as! FieldComplexNode)
+                } else if sqlField is SqlFieldStarNode {
+                    fields.append(contentsOf: buildStarField())
                 } else if let basicNode = try buildBasicField(sqlField) {
                     fields.append(basicNode)
                 }
@@ -495,6 +497,16 @@ public class Relation { // swiftlint:disable:this type_body_length
             }
 
             return nil
+        }
+
+        private func buildStarField() -> [FieldNode] {
+            var fieldNodes = [FieldNode]()
+            for table in self.tables {
+                for fieldDef in table.tableDef.fields {
+                    fieldNodes.append(FieldBasicNode(fieldDef as! FieldBasicDef))
+                }
+            }
+            return fieldNodes
         }
 
         private func convert( // swiftlint:disable:this cyclomatic_complexity function_body_length

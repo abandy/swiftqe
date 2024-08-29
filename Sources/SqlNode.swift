@@ -167,6 +167,15 @@ public class SqlFieldBasicNode: SqlFieldNode {
     }
 }
 
+public class SqlFieldStarNode: SqlFieldNode {
+    public init() {
+        super.init("*", type: .FIELD)
+    }
+
+    override public func toString() -> String {
+        return "SqlFieldStarNode: *"
+    }
+}
 public class SqlFieldComplexNode: SqlFieldNode {
     public var child: SqlNode
     public init(_ name: String, child: SqlNode) {
